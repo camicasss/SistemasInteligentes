@@ -1,0 +1,142 @@
+{
+  "macrocategorias": [
+    {
+      "id": "M00",
+      "nombre": "Sin asignar",
+      "color": "#94a3b8",
+      "subcategorias": [
+        { "id": "M00-S00", "nombre": "Sin asignar" }
+      ]
+    },
+    {
+      "id": "M01",
+      "nombre": "Energía Sostenible y Transición Energética",
+      "color": "#f59e0b",
+      "subcategorias": [
+        { "id": "M01-S01", "nombre": "Redes Eléctricas Inteligentes y Micro-redes" },
+        { "id": "M01-S02", "nombre": "Energías Renovables y Tecnologías Limpias" },
+        { "id": "M01-S03", "nombre": "Monitoreo y Sensores Electromagnéticos" },
+        { "id": "M01-S04", "nombre": "Almacenamiento y Distribución de Energía" },
+        { "id": "M01-S05", "nombre": "Eficiencia Energética Industrial" }
+      ]
+    },
+    {
+      "id": "M02",
+      "nombre": "Ingeniería de Sistemas Inteligentes y Digitalización",
+      "color": "#3b82f6",
+      "subcategorias": [
+        { "id": "M02-S01", "nombre": "Inteligencia Artificial Aplicada" },
+        { "id": "M02-S02", "nombre": "Internet de las Cosas (IoT) y Sistemas Embebidos" },
+        { "id": "M02-S03", "nombre": "Realidad Aumentada y Aprendizaje Inmersivo" },
+        { "id": "M02-S04", "nombre": "Ciberseguridad 4.0 y Sistemas Ciberfísicos" },
+        { "id": "M02-S05", "nombre": "Plataformas Digitales y Gemelos Digitales" }
+      ]
+    },
+    {
+      "id": "M03",
+      "nombre": "Gestión Integral del Agua y Recursos Ambientales",
+      "color": "#06b6d4",
+      "subcategorias": [
+        { "id": "M03-S01", "nombre": "Tecnologías de Tratamiento y Saneamiento del Agua" },
+        { "id": "M03-S02", "nombre": "Monitoreo Ambiental y Gestión de Cuencas Hidrográficas" },
+        { "id": "M03-S03", "nombre": "Infraestructura Hidráulica y Control de Inundaciones" }
+      ]
+    },
+    {
+      "id": "M04",
+      "nombre": "Nuevos Materiales y Manufactura Avanzada",
+      "color": "#8b5cf6",
+      "subcategorias": [
+        { "id": "M04-S01", "nombre": "Nanomateriales y Recubrimientos Avanzados" },
+        { "id": "M04-S02", "nombre": "Manufactura Aditiva (Impresión 3D)" },
+        { "id": "M04-S03", "nombre": "Compuestos y Superaleaciones" },
+        { "id": "M04-S04", "nombre": "Ingeniería de Superficies y Tribología" }
+      ]
+    },
+    {
+      "id": "M05",
+      "nombre": "Materiales Avanzados y Nanotecnología para la Salud",
+      "color": "#ec4899",
+      "subcategorias": [
+        { "id": "M05-S01", "nombre": "Materiales Funcionales y Compuestos" },
+        { "id": "M05-S02", "nombre": "Diseño y Optimización de Componentes Mecánicos" },
+        { "id": "M05-S03", "nombre": "Salud y Medicina Regenerativa" }
+      ]
+    },
+    {
+      "id": "M06",
+      "nombre": "Bioeconomía y Tecnologías Agroindustriales",
+      "color": "#10b981",
+      "subcategorias": [
+        { "id": "M06-S01", "nombre": "Biotecnología y Bio-refinería" },
+        { "id": "M06-S02", "nombre": "Cadenas Productivas Agroindustriales" },
+        { "id": "M06-S03", "nombre": "Seguridad Alimentaria y Tecnologías Postcosecha" },
+        { "id": "M06-S04", "nombre": "Bioenergía y Productos Biobasados" }
+      ]
+    },
+    {
+      "id": "M07",
+      "nombre": "Infraestructura Sostenible y Territorios Resilientes",
+      "color": "#f97316",
+      "subcategorias": [
+        { "id": "M07-S01", "nombre": "Infraestructura Vial y Pavimentos Sostenibles" },
+        { "id": "M07-S02", "nombre": "Ingeniería de Riesgos" },
+        { "id": "M07-S03", "nombre": "Movilidad Urbana Sostenible" }
+      ]
+    },
+    {
+      "id": "M08",
+      "nombre": "Tecnologías para la Salud y Bioinformática",
+      "color": "#ef4444",
+      "subcategorias": [
+        { "id": "M08-S01", "nombre": "Dispositivos Médicos y Telemedicina" },
+        { "id": "M08-S02", "nombre": "Telemedicina y Salud Digital" }
+      ]
+    },
+    {
+      "id": "M09",
+      "nombre": "Economía Circular y Eco-diseño",
+      "color": "#84cc16",
+      "subcategorias": [
+        { "id": "M09-S01", "nombre": "Reciclaje y Reutilización de Residuos" },
+        { "id": "M09-S02", "nombre": "Eco-diseño y Simbiosis Industrial" }
+      ]
+    },
+    {
+      "id": "M10",
+      "nombre": "Inclusión Social y Calidad de Vida",
+      "color": "#a855f7",
+      "subcategorias": [
+        { "id": "M10-S01", "nombre": "Emprendimiento y Sociedad Abierta" },
+        { "id": "M10-S02", "nombre": "Accesibilidad e Inclusión Digital" },
+        { "id": "M10-S03", "nombre": "Innovación Educativa e Inclusión Digital" }
+      ]
+    }
+  ],
+  "departamentos": [
+    "Departamento de Ingeniería Química y Ambiental",
+    "Departamento de Ingeniería Civil y Agrícola",
+    "Departamento de Ingeniería de Sistemas e Industrial",
+    "Departamento de Ingeniería Eléctrica y Electrónica",
+    "Departamento de Ingeniería Mecánica y Mecatrónica",
+    "Departamento de Farmacia",
+    "Departamento de Química",
+    "Dirección Nacional de Bienestar",
+    "Dirección de Investigación Sede Bogotá"
+  ],
+  "estados": [
+    "Aprobado",
+    "Aprobado por OCAD",
+    "Banco Financiable",
+    "Cancelado",
+    "Elegible",
+    "En ejecución",
+    "En Legalización",
+    "Finalizado",
+    "Ingresando Proyecto",
+    "No aprobado",
+    "No cumplió requisitos",
+    "Propuesto",
+    "Suspendido"
+  ]
+}
