@@ -16,6 +16,69 @@ DB_FILE = BASE_DIR / "data" / "processed" / "proyectos.db"
 DASHBOARD_JSON = BASE_DIR / "data" / "dashboard" / "proyectos_from_db.json"
 ML_DATASET = BASE_DIR / "data" / "processed" / "ml_dataset.csv"
 
+KEYWORD_STOPWORDS = {
+    "actual",
+    "ademas",
+    "analisis",
+    "aplicacion",
+    "aplicada",
+    "aplicado",
+    "aplicar",
+    "base",
+    "bogota",
+    "caracterizacion",
+    "colombia",
+    "colombiano",
+    "colombiana",
+    "como",
+    "con",
+    "contribuir",
+    "debe",
+    "del",
+    "desarrollo",
+    "desarrollar",
+    "determinar",
+    "diferentes",
+    "diseno",
+    "disenar",
+    "entre",
+    "establecer",
+    "esta",
+    "este",
+    "estas",
+    "estos",
+    "evaluacion",
+    "evaluar",
+    "forma",
+    "generar",
+    "ingenieria",
+    "investigacion",
+    "mediante",
+    "modelo",
+    "modelos",
+    "para",
+    "permitan",
+    "permitir",
+    "por",
+    "proceso",
+    "procesos",
+    "producto",
+    "productos",
+    "proponer",
+    "propuesta",
+    "proyecto",
+    "realizar",
+    "sistema",
+    "sistemas",
+    "sobre",
+    "traves",
+    "través",
+    "universidad",
+    "unal",
+    "una",
+    "uso",
+}
+
 
 def clean_text(value: object) -> str:
     if pd.isna(value):
@@ -34,6 +97,32 @@ def slugify(value: str) -> str:
 def split_multi_value(value: str) -> list[str]:
     parts = re.split(r"\s*;\s*", clean_text(value))
     return sorted({part for part in parts if part})
+
+
+def split_list_value(value: object) -> list[str]:
+    parts = re.split(r"\s*(?:;|,|\|)\s*", clean_text(value))
+    return sorted({part for part in parts if part})
+
+
+def keyword_token(value: str) -> str:
+    normalized = unicodedata.normalize("NFD", value.lower())
+    ascii_text = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9]+", "", ascii_text)
+
+
+def infer_keywords(*values: object, limit: int = 8) -> list[str]:
+    counts: dict[str, int] = {}
+    display: dict[str, str] = {}
+    text = " ".join(clean_text(value) for value in values if clean_text(value))
+    for raw_word in re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]{4,}", text):
+        token = keyword_token(raw_word)
+        if len(token) < 4 or token in KEYWORD_STOPWORDS:
+            continue
+        counts[token] = counts.get(token, 0) + 1
+        display.setdefault(token, raw_word.lower())
+
+    ordered = sorted(counts, key=lambda token: (-counts[token], display[token]))
+    return [display[token] for token in ordered[:limit]]
 
 
 def normalize_department(value: str) -> str:
@@ -62,6 +151,20 @@ def first_value(row: Any, *names: str) -> object:
     return ""
 
 
+def collect_values(row: Any, *names: str) -> list[str]:
+    values: list[str] = []
+    for name in names:
+        values.extend(split_multi_value(row.get(name, "")))
+    return sorted(set(values))
+
+
+def collect_list_values(row: Any, *names: str) -> list[str]:
+    values: list[str] = []
+    for name in names:
+        values.extend(split_list_value(row.get(name, "")))
+    return sorted(set(values))
+
+
 def year_from_date(value: object) -> int | None:
     date = pd.to_datetime(value, errors="coerce")
     if pd.isna(date):
@@ -81,15 +184,56 @@ def build_projects(df: pd.DataFrame) -> pd.DataFrame:
         codigo = clean_text(row.get("codigo_hermes"))
         resumen = clean_text(row.get("resumen"))
         objetivo = clean_text(row.get("objetivo_general"))
-        productos = split_multi_value(row.get("tipo_de_producto_propuesto", ""))
-        productos += split_multi_value(row.get("tipo_de_producto_logrado", ""))
+        productos_propuestos = collect_values(
+            row,
+            "tipo_de_producto_propuesto",
+            "tipo_producto_propuesto",
+            "producto_propuesto",
+            "productos_propuestos",
+        )
+        productos_logrados = collect_values(
+            row,
+            "tipo_de_producto_logrado",
+            "tipo_producto_logrado",
+            "nombre_de_producto_logrado",
+            "nombre_producto_logrado",
+        )
+        productos = sorted(set(productos_propuestos + productos_logrados))
         proteccion_producto = clean_text(
             first_value(
                 row,
                 "es_suceptible_de_proteccion_producto",
                 "es_suceptible_de_proteccion___producto",
+                "es_susceptible_de_proteccion_producto",
+                "es_susceptible_de_proteccion___producto",
+                "es_succeptible_de_proteccion_producto",
+                "es_succeptible_de_proteccion___producto",
+                "susceptible_de_proteccion_producto",
+                "succeptible_de_proteccion_producto",
+                "suceptible_de_proteccion_producto",
+                "proteccion_producto",
             )
         )
+        palabras_clave = collect_list_values(
+            row,
+            "palabras_clave",
+            "palabra_clave",
+            "keywords",
+            "key_words",
+            "palabras_clave_proyecto",
+            "palabras_clave_del_proyecto",
+        )
+        if not palabras_clave:
+            palabras_clave = infer_keywords(
+                row.get("nombre_proyecto"),
+                objetivo,
+                resumen,
+                row.get("area_ocde"),
+                row.get("tipo_proyecto"),
+                limit=3,
+            )
+        else:
+            palabras_clave = palabras_clave[:3]
 
         records.append(
             {
@@ -109,6 +253,15 @@ def build_projects(df: pd.DataFrame) -> pd.DataFrame:
                 "ods_principal": clean_text(row.get("ods_principal")),
                 "area_ocde": clean_text(row.get("area_ocde")),
                 "tipo_proyecto": clean_text(row.get("tipo_proyecto")),
+                "grupo_de_investigacion": clean_text(
+                    first_value(
+                        row,
+                        "grupo_de_investigacion",
+                        "nombre_grupo_de_investigacion",
+                        "grupo_investigacion",
+                        "nombre_del_grupo_de_investigacion",
+                    )
+                ),
                 "proteccion_producto": proteccion_producto,
                 "año_inicio": year_from_date(row.get("fecha_propuesto")),
                 "año_fin": None,
@@ -121,7 +274,9 @@ def build_projects(df: pd.DataFrame) -> pd.DataFrame:
                 "clasificacion_confianza": None,
                 "clasificacion_revisada": 0,
                 "clasificacion_actualizada_en": None,
-                "palabras_clave": [],
+                "palabras_clave": palabras_clave,
+                "productos_propuestos": productos_propuestos,
+                "productos_logrados": productos_logrados,
                 "productos_esperados": sorted(set(productos)),
                 "texto_ml": " ".join(
                     part
@@ -156,6 +311,7 @@ def write_database(projects: pd.DataFrame) -> None:
               resumen TEXT,
               departamento TEXT,
               facultad TEXT,
+              grupo_de_investigacion TEXT,
               estado TEXT,
               ods_principal TEXT,
               area_ocde TEXT,
@@ -177,7 +333,15 @@ def write_database(projects: pd.DataFrame) -> None:
             CREATE TABLE project_products (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               project_id INTEGER NOT NULL,
+              tipo TEXT NOT NULL DEFAULT 'esperado',
               producto TEXT NOT NULL,
+              FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE project_keywords (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              project_id INTEGER NOT NULL,
+              palabra TEXT NOT NULL,
               FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
             );
 
@@ -190,17 +354,37 @@ def write_database(projects: pd.DataFrame) -> None:
         project_columns = [
             col
             for col in projects.columns
-            if col not in {"palabras_clave", "productos_esperados"}
+            if col
+            not in {
+                "palabras_clave",
+                "productos_propuestos",
+                "productos_logrados",
+                "productos_esperados",
+            }
         ]
         projects[project_columns].to_sql("projects", conn, if_exists="append", index=False)
 
         product_rows = []
+        keyword_rows = []
         for project in projects.to_dict("records"):
-            for product in project["productos_esperados"]:
-                product_rows.append({"project_id": project["id"], "producto": product})
-        pd.DataFrame(product_rows).to_sql(
-            "project_products", conn, if_exists="append", index=False
-        )
+            for product in project["productos_propuestos"]:
+                product_rows.append(
+                    {"project_id": project["id"], "tipo": "propuesto", "producto": product}
+                )
+            for product in project["productos_logrados"]:
+                product_rows.append(
+                    {"project_id": project["id"], "tipo": "logrado", "producto": product}
+                )
+            for keyword in project["palabras_clave"]:
+                keyword_rows.append({"project_id": project["id"], "palabra": keyword})
+        if product_rows:
+            pd.DataFrame(product_rows).to_sql(
+                "project_products", conn, if_exists="append", index=False
+            )
+        if keyword_rows:
+            pd.DataFrame(keyword_rows).to_sql(
+                "project_keywords", conn, if_exists="append", index=False
+            )
 
 
 def write_dashboard_json(projects: pd.DataFrame) -> None:
@@ -216,11 +400,14 @@ def write_dashboard_json(projects: pd.DataFrame) -> None:
         "estado",
         "ods_principal",
         "proteccion_producto",
+        "grupo_de_investigacion",
         "macrocategoria_id",
         "macrocategoria",
         "subcategoria_id",
         "subcategoria",
         "palabras_clave",
+        "productos_propuestos",
+        "productos_logrados",
         "productos_esperados",
     ]
     records = projects[fields].where(pd.notna(projects[fields]), None).to_dict("records")

@@ -36,6 +36,7 @@ class ProjectIn(BaseModel):
     objetivo: str = Field(min_length=1)
     departamento: str = Field(min_length=1)
     facultad: str | None = None
+    grupo_de_investigacion: str | None = None
     año_inicio: int
     año_fin: int | None = None
     estado: str = Field(min_length=1)
@@ -46,6 +47,8 @@ class ProjectIn(BaseModel):
     subcategoria_id: str = Field(min_length=1)
     subcategoria: str = Field(min_length=1)
     palabras_clave: list[str] = Field(default_factory=list)
+    productos_propuestos: list[str] = Field(default_factory=list)
+    productos_logrados: list[str] = Field(default_factory=list)
     productos_esperados: list[str] = Field(default_factory=list)
 
 
@@ -65,10 +68,39 @@ def ensure_classification_columns(conn: sqlite3.Connection) -> None:
         "clasificacion_revisada": "ALTER TABLE projects ADD COLUMN clasificacion_revisada INTEGER DEFAULT 0",
         "clasificacion_actualizada_en": "ALTER TABLE projects ADD COLUMN clasificacion_actualizada_en TEXT",
         "proteccion_producto": "ALTER TABLE projects ADD COLUMN proteccion_producto TEXT",
+        "grupo_de_investigacion": "ALTER TABLE projects ADD COLUMN grupo_de_investigacion TEXT",
     }
     for column, statement in migrations.items():
         if column not in columns:
             conn.execute(statement)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS project_products (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL,
+          tipo TEXT NOT NULL DEFAULT 'esperado',
+          producto TEXT NOT NULL,
+          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )
+        """
+    )
+    product_columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(project_products)")
+    }
+    if "tipo" not in product_columns:
+        conn.execute(
+            "ALTER TABLE project_products ADD COLUMN tipo TEXT NOT NULL DEFAULT 'esperado'"
+        )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS project_keywords (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL,
+          palabra TEXT NOT NULL,
+          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )
+        """
+    )
     conn.commit()
 
 
@@ -90,7 +122,16 @@ def project_text(project: ProjectIn) -> str:
     return " ".join(part.strip() for part in parts if part and part.strip())
 
 
-def row_to_project(row: sqlite3.Row, products: list[str] | None = None) -> dict[str, Any]:
+def row_to_project(
+    row: sqlite3.Row,
+    products: dict[str, list[str]] | None = None,
+    keywords: list[str] | None = None,
+) -> dict[str, Any]:
+    products = products or {}
+    proposed = products.get("propuesto", [])
+    achieved = products.get("logrado", [])
+    legacy = products.get("esperado", [])
+    combined = sorted(set(proposed + achieved + legacy))
     return {
         "id": row["id"],
         "codigo_hermes": row["codigo_hermes"] or "",
@@ -103,6 +144,7 @@ def row_to_project(row: sqlite3.Row, products: list[str] | None = None) -> dict[
         "estado": row["estado"] or "",
         "ods_principal": row["ods_principal"] or "",
         "proteccion_producto": row["proteccion_producto"] or "",
+        "grupo_de_investigacion": row["grupo_de_investigacion"] or "",
         "macrocategoria_id": row["macrocategoria_id"] or "M00",
         "macrocategoria": row["macrocategoria"] or "Sin asignar",
         "subcategoria_id": row["subcategoria_id"] or "M00-S00",
@@ -111,19 +153,33 @@ def row_to_project(row: sqlite3.Row, products: list[str] | None = None) -> dict[
         "clasificacion_confianza": row["clasificacion_confianza"],
         "clasificacion_revisada": bool(row["clasificacion_revisada"]),
         "clasificacion_actualizada_en": row["clasificacion_actualizada_en"],
-        "palabras_clave": [],
-        "productos_esperados": products or [],
+        "palabras_clave": keywords or [],
+        "productos_propuestos": proposed,
+        "productos_logrados": achieved,
+        "productos_esperados": combined,
     }
 
 
-def fetch_products(conn: sqlite3.Connection) -> dict[int, list[str]]:
-    products: dict[int, list[str]] = {}
+def fetch_products(conn: sqlite3.Connection) -> dict[int, dict[str, list[str]]]:
+    products: dict[int, dict[str, list[str]]] = {}
     rows = conn.execute(
-        "SELECT project_id, producto FROM project_products ORDER BY producto"
+        "SELECT project_id, tipo, producto FROM project_products ORDER BY producto"
     ).fetchall()
     for row in rows:
-        products.setdefault(row["project_id"], []).append(row["producto"])
+        project_products = products.setdefault(row["project_id"], {})
+        product_type = row["tipo"] or "esperado"
+        project_products.setdefault(product_type, []).append(row["producto"])
     return products
+
+
+def fetch_keywords(conn: sqlite3.Connection) -> dict[int, list[str]]:
+    keywords: dict[int, list[str]] = {}
+    rows = conn.execute(
+        "SELECT project_id, palabra FROM project_keywords ORDER BY palabra"
+    ).fetchall()
+    for row in rows:
+        keywords.setdefault(row["project_id"], []).append(row["palabra"])
+    return keywords
 
 
 @app.get("/api/health")
@@ -141,7 +197,11 @@ def get_projects() -> list[dict[str, Any]]:
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM projects ORDER BY id").fetchall()
         products = fetch_products(conn)
-    return [row_to_project(row, products.get(row["id"], [])) for row in rows]
+        keywords = fetch_keywords(conn)
+    return [
+        row_to_project(row, products.get(row["id"], {}), keywords.get(row["id"], []))
+        for row in rows
+    ]
 
 
 @app.post("/api/projects", status_code=201)
@@ -155,7 +215,7 @@ def create_project(project: ProjectIn) -> dict[str, Any]:
                 """
                 INSERT INTO projects (
                   id, codigo_hermes, nombre, objetivo, resumen, departamento,
-                  facultad, estado, ods_principal, area_ocde, tipo_proyecto,
+                  facultad, grupo_de_investigacion, estado, ods_principal, area_ocde, tipo_proyecto,
                   proteccion_producto, año_inicio, año_fin, macrocategoria_id, macrocategoria,
                   subcategoria_id, subcategoria, clasificacion_origen,
                   clasificacion_confianza, clasificacion_revisada,
@@ -170,6 +230,7 @@ def create_project(project: ProjectIn) -> dict[str, Any]:
                     "",
                     project.departamento.strip(),
                     clean_optional(project.facultad) or "Ingeniería",
+                    clean_optional(project.grupo_de_investigacion) or "",
                     project.estado.strip(),
                     clean_optional(project.ods_principal) or "",
                     "",
@@ -194,25 +255,41 @@ def create_project(project: ProjectIn) -> dict[str, Any]:
                 detail="Ya existe un proyecto con ese código HERMES.",
             ) from exc
 
-        for product in project.productos_esperados:
+        proposed_products = project.productos_propuestos or project.productos_esperados
+        for product in proposed_products:
             product = product.strip()
             if product:
                 conn.execute(
-                    "INSERT INTO project_products (project_id, producto) VALUES (?, ?)",
-                    (next_id, product),
+                    "INSERT INTO project_products (project_id, tipo, producto) VALUES (?, ?, ?)",
+                    (next_id, "propuesto", product),
+                )
+        for product in project.productos_logrados:
+            product = product.strip()
+            if product:
+                conn.execute(
+                    "INSERT INTO project_products (project_id, tipo, producto) VALUES (?, ?, ?)",
+                    (next_id, "logrado", product),
+                )
+        for keyword in project.palabras_clave:
+            keyword = keyword.strip()
+            if keyword:
+                conn.execute(
+                    "INSERT INTO project_keywords (project_id, palabra) VALUES (?, ?)",
+                    (next_id, keyword),
                 )
 
         conn.commit()
         row = conn.execute("SELECT * FROM projects WHERE id = ?", (next_id,)).fetchone()
-        products = [
-            row["producto"]
+        products = fetch_products(conn).get(next_id, {})
+        keywords = [
+            row["palabra"]
             for row in conn.execute(
-                "SELECT producto FROM project_products WHERE project_id = ? ORDER BY producto",
+                "SELECT palabra FROM project_keywords WHERE project_id = ? ORDER BY palabra",
                 (next_id,),
             )
         ]
 
-    return row_to_project(row, products)
+    return row_to_project(row, products, keywords)
 
 
 @app.post("/api/projects/import-excel")
@@ -249,8 +326,14 @@ async def import_projects_excel(
             with get_conn() as conn:
                 rows = conn.execute("SELECT * FROM projects ORDER BY id").fetchall()
                 products = fetch_products(conn)
+                keywords = fetch_keywords(conn)
             summary["projects"] = [
-                row_to_project(row, products.get(row["id"], [])) for row in rows
+                row_to_project(
+                    row,
+                    products.get(row["id"], {}),
+                    keywords.get(row["id"], []),
+                )
+                for row in rows
             ]
 
         return summary

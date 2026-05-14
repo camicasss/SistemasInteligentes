@@ -6,7 +6,7 @@
 // ─── ESTADO GLOBAL ───────────────────────────────────────────
 let allProjects    = [];
 let allCategories  = {};
-let filters        = { search: '', dept: '', macro: '', sub: '', year: '', estado: '', protection: '' };
+let filters        = { search: '', dept: '', group: '', macro: '', sub: '', year: '', estado: '', protection: '' };
 let viewMode       = 'grid'; // 'grid' | 'table' | 'charts'
 let apiAvailable   = false;
 let importFile     = null;
@@ -65,12 +65,14 @@ async function loadData() {
 // ─── INICIALIZACIÓN DE FILTROS ────────────────────────────────
 function initFilters() {
   const depts  = [...new Set(allProjects.map(p => p.departamento).filter(Boolean))].sort();
+  const groups = getResearchGroups();
   const years  = [...new Set(allProjects.map(p => p.año_inicio).filter(Boolean))].sort((a,b) => b - a);
   const states = getProjectStates();
   const protectionValues = getProtectionValues();
   const macros = allCategories.macrocategorias || [];
 
   resetSelect('filterDept', 'Todos');
+  resetSelect('filterGroup', 'Todos');
   resetSelect('filterYear', 'Todos');
   resetSelect('filterMacro', 'Todas');
   resetSelect('filterProtection', 'Todos');
@@ -82,6 +84,7 @@ function initFilters() {
   document.getElementById('f_sub').innerHTML = '<option value="">Seleccionar macrocategoría primero…</option>';
 
   populateSelect('filterDept',  depts,  d => ({ value: d, label: d }));
+  populateSelect('filterGroup', groups, g => ({ value: g, label: g }));
   populateSelect('filterYear',  years,  y => ({ value: y, label: y }));
   populateSelect('filterMacro', macros, m => ({ value: m.id, label: `${m.id} — ${m.nombre}` }));
   populateSelect('filterProtection', protectionValues, value => ({ value, label: value }));
@@ -106,6 +109,14 @@ function getProjectStates() {
     if (state && !states.includes(state)) states.push(state);
   });
   return states;
+}
+
+function getResearchGroups() {
+  return [...new Set(
+    allProjects
+      .map(p => p.grupo_de_investigacion)
+      .filter(Boolean)
+  )].sort();
 }
 
 function getProtectionValues() {
@@ -149,6 +160,11 @@ function initEventListeners() {
 
   document.getElementById('filterDept').addEventListener('change', e => {
     filters.dept = e.target.value;
+    renderAll();
+  });
+
+  document.getElementById('filterGroup').addEventListener('change', e => {
+    filters.group = e.target.value;
     renderAll();
   });
 
@@ -265,12 +281,13 @@ function getFiltered() {
     if (filters.search) {
       const haystack = [
         p.nombre, p.objetivo, p.departamento,
-        p.macrocategoria, p.subcategoria,
+        p.grupo_de_investigacion, p.macrocategoria, p.subcategoria,
         ...(p.palabras_clave || [])
       ].join(' ').toLowerCase();
       if (!haystack.includes(filters.search)) return false;
     }
     if (filters.dept   && p.departamento       !== filters.dept)               return false;
+    if (filters.group  && p.grupo_de_investigacion !== filters.group)          return false;
     if (filters.macro  && p.macrocategoria_id  !== filters.macro)              return false;
     if (filters.sub    && p.subcategoria_id    !== filters.sub)                return false;
     if (filters.year   && p.año_inicio         !== filters.year)               return false;
@@ -345,6 +362,7 @@ function renderGrid(projects) {
       </div>
       <p class="card-name">${p.nombre}</p>
       <p class="card-dept">${p.departamento}</p>
+      <p class="card-group">${p.grupo_de_investigacion || 'Sin grupo registrado'}</p>
       <div class="card-tags">
         <span class="card-tag tag-cat">${p.macrocategoria_id} · ${shortCat(p.macrocategoria)}</span>
         ${(p.palabras_clave || []).slice(0,2).map(k => `<span class="card-tag">${k}</span>`).join('')}
@@ -378,6 +396,7 @@ function renderTable(projects) {
       <td class="td-code">HERMES ${p.codigo_hermes || '—'}</td>
       <td class="td-name" title="${p.nombre}">${p.nombre}</td>
       <td class="td-dept" title="${p.departamento}">${p.departamento}</td>
+      <td class="td-group" title="${p.grupo_de_investigacion || '—'}">${p.grupo_de_investigacion || '—'}</td>
       <td class="td-cat" title="${p.macrocategoria}">${p.macrocategoria_id} · ${shortCat(p.macrocategoria)}</td>
       <td class="td-protection" title="${p.proteccion_producto || '—'}">${p.proteccion_producto || '—'}</td>
       <td>${p.año_inicio}</td>
@@ -501,7 +520,10 @@ function openDetailModal(p) {
   const content = document.getElementById('detailContent');
 
   const kwHTML = (p.palabras_clave || []).map(k => `<span class="detail-kw">${k}</span>`).join('');
-  const prodHTML = (p.productos_esperados || []).map(pr => `<li>${pr}</li>`).join('');
+  const proposedProducts = p.productos_propuestos || p.productos_esperados || [];
+  const achievedProducts = p.productos_logrados || [];
+  const proposedHTML = proposedProducts.map(pr => `<li>${pr}</li>`).join('');
+  const achievedHTML = achievedProducts.map(pr => `<li>${pr}</li>`).join('');
 
   content.innerHTML = `
     <div class="detail-category-bar">
@@ -527,6 +549,10 @@ function openDetailModal(p) {
       <div class="meta-item">
         <div class="meta-item-label">Departamento / Instituto</div>
         <div class="meta-item-val">${p.departamento}</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-item-label">Grupo de investigación</div>
+        <div class="meta-item-val">${p.grupo_de_investigacion || '—'}</div>
       </div>
       <div class="meta-item">
         <div class="meta-item-label">Período</div>
@@ -560,10 +586,16 @@ function openDetailModal(p) {
       <div class="detail-keywords">${kwHTML}</div>
     </div>` : ''}
 
-    ${prodHTML ? `
+    ${proposedHTML ? `
     <div class="detail-section">
-      <div class="detail-section-label">Productos esperados</div>
-      <ul class="detail-products-list">${prodHTML}</ul>
+      <div class="detail-section-label">Productos propuestos</div>
+      <ul class="detail-products-list">${proposedHTML}</ul>
+    </div>` : ''}
+
+    ${achievedHTML ? `
+    <div class="detail-section">
+      <div class="detail-section-label">Productos logrados</div>
+      <ul class="detail-products-list">${achievedHTML}</ul>
     </div>` : ''}
   `;
 
@@ -599,7 +631,9 @@ async function handleAddProject(e) {
 
   const palabrasClave = document.getElementById('f_palabras').value
     .split(',').map(s => s.trim()).filter(Boolean);
-  const productos = document.getElementById('f_productos').value
+  const productosPropuestos = document.getElementById('f_productos_propuestos').value
+    .split(',').map(s => s.trim()).filter(Boolean);
+  const productosLogrados = document.getElementById('f_productos_logrados').value
     .split(',').map(s => s.trim()).filter(Boolean);
 
   const newProject = {
@@ -609,6 +643,7 @@ async function handleAddProject(e) {
     objetivo:         document.getElementById('f_objetivo').value.trim(),
     departamento:     document.getElementById('f_departamento').value,
     facultad:         document.getElementById('f_facultad').value.trim(),
+    grupo_de_investigacion: document.getElementById('f_grupo').value.trim(),
     macrocategoria_id: macroId,
     macrocategoria:   macroData?.nombre || '',
     subcategoria_id:  subId,
@@ -619,7 +654,9 @@ async function handleAddProject(e) {
     ods_principal:    document.getElementById('f_ods').value.trim(),
     proteccion_producto: '',
     palabras_clave:   palabrasClave,
-    productos_esperados: productos
+    productos_propuestos: productosPropuestos,
+    productos_logrados: productosLogrados,
+    productos_esperados: [...new Set([...productosPropuestos, ...productosLogrados])]
   };
 
   try {
@@ -755,6 +792,9 @@ function renderImportSummary(summary) {
     ['proyectos_sin_codigo', 'Proyectos sin código'],
     ['proyectos_autoclasificados', 'Pendientes de clasificación'],
     ['clasificaciones_revisadas_conservadas', 'Clasificaciones revisadas conservadas'],
+    ['actualiza_productos_propuestos', 'Actualiza productos propuestos'],
+    ['actualiza_productos_logrados', 'Actualiza productos logrados'],
+    ['actualiza_proteccion_producto', 'Actualiza susceptible de protección'],
     ['dry_run', 'Modo vista previa']
   ];
 
@@ -771,9 +811,15 @@ function renderImportSummary(summary) {
       <strong>${err}</strong>
     </div>
   `).join('');
+  const warnings = (summary.advertencias || []).map(warning => `
+    <div class="import-summary-row">
+      <span>Advertencia</span>
+      <strong>${warning}</strong>
+    </div>
+  `).join('');
 
   const box = document.getElementById('importSummary');
-  box.innerHTML = html + errors;
+  box.innerHTML = html + warnings + errors;
   box.classList.remove('hidden');
 }
 
@@ -813,9 +859,10 @@ function setView(mode) {
 
 // ─── LIMPIAR FILTROS ──────────────────────────────────────────
 function clearFilters() {
-  filters = { search: '', dept: '', macro: '', sub: '', year: '', estado: '', protection: '' };
+  filters = { search: '', dept: '', group: '', macro: '', sub: '', year: '', estado: '', protection: '' };
   document.getElementById('searchInput').value = '';
   document.getElementById('filterDept').value  = '';
+  document.getElementById('filterGroup').value = '';
   document.getElementById('filterMacro').value = '';
   document.getElementById('filterSub').value   = '';
   document.getElementById('filterYear').value  = '';

@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import unicodedata
 
 import pandas as pd
@@ -24,8 +25,16 @@ def limpiar_columna(columna):
     columna = columna.replace("/", "_")
     columna = columna.replace("(", "")
     columna = columna.replace(")", "")
+    columna = re.sub(r"_+", "_", columna)
 
-    return columna
+    return columna.strip("_")
+
+
+def primer_valor(row, columnas):
+    for columna in columnas:
+        if columna in row and str(row[columna]).strip():
+            return row[columna]
+    return ""
 
 # ====================================
 # LEER EXCEL
@@ -85,6 +94,14 @@ columnas_importantes = [
     "nombre_de_producto_logrado",
     "es_suceptible_de_proteccion___producto",
     "es_suceptible_de_proteccion_producto",
+    "es_susceptible_de_proteccion_producto",
+    "es_susceptible_de_proteccion___producto",
+    "es_succeptible_de_proteccion_producto",
+    "es_succeptible_de_proteccion___producto",
+    "susceptible_de_proteccion_producto",
+    "suceptible_de_proteccion_producto",
+    "succeptible_de_proteccion_producto",
+    "proteccion_producto",
 
     "area_ocde",
     "tipo_proyecto"
@@ -97,6 +114,25 @@ columnas_importantes = [
 ]
 
 df = df[columnas_importantes]
+
+columnas_proteccion = [
+    "proteccion_producto",
+    "es_suceptible_de_proteccion_producto",
+    "es_suceptible_de_proteccion___producto",
+    "es_susceptible_de_proteccion_producto",
+    "es_susceptible_de_proteccion___producto",
+    "es_succeptible_de_proteccion_producto",
+    "es_succeptible_de_proteccion___producto",
+    "susceptible_de_proteccion_producto",
+    "suceptible_de_proteccion_producto",
+    "succeptible_de_proteccion_producto",
+]
+columnas_proteccion = [col for col in columnas_proteccion if col in df.columns]
+if columnas_proteccion:
+    df["proteccion_producto"] = df.apply(
+        lambda row: primer_valor(row, columnas_proteccion),
+        axis=1,
+    )
 
 # ====================================
 # RELLENAR VACIOS

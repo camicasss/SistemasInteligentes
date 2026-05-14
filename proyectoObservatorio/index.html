@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Ancizar+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=unal-20260512" />
+  <link rel="stylesheet" href="css/styles.css?v=unal-20260514b" />
 </head>
 <body>
 
@@ -76,13 +76,20 @@
         <label class="filter-label">Buscar</label>
         <div class="search-wrap">
           <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="searchInput" class="filter-input search-input" placeholder="Nombre, objetivo, palabras clave…" />
+          <input type="text" id="searchInput" class="filter-input search-input" placeholder="Nombre, objetivo, grupo, palabras clave…" />
         </div>
       </div>
 
       <div class="filter-group">
         <label class="filter-label" for="filterDept">Departamento</label>
         <select id="filterDept" class="filter-select">
+          <option value="">Todos</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label" for="filterGroup">Grupo de investigación</label>
+        <select id="filterGroup" class="filter-select">
           <option value="">Todos</option>
         </select>
       </div>
@@ -155,6 +162,7 @@
               <th>Código</th>
               <th>Nombre del Proyecto</th>
               <th>Departamento</th>
+              <th>Grupo</th>
               <th>Categoría</th>
               <th>Protección</th>
               <th>Año</th>
@@ -229,7 +237,7 @@
   <div class="modal-overlay hidden" id="importModal">
     <div class="modal-panel modal-import">
       <div class="modal-form-header">
-        <h2 class="modal-form-title">Actualizar Proyectos desde Excel</h2>
+        <h2 class="modal-form-title">Actualizar proyectos desde Excel</h2>
         <button class="modal-close" id="closeImport">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
@@ -294,6 +302,11 @@
           </div>
 
           <div class="form-group">
+            <label class="form-label" for="f_grupo">Grupo de investigación</label>
+            <input type="text" id="f_grupo" class="form-input" placeholder="Nombre del grupo" />
+          </div>
+
+          <div class="form-group">
             <label class="form-label" for="f_macro">Macrocategoría *</label>
             <select id="f_macro" class="form-input" required>
               <option value="">Seleccionar…</option>
@@ -335,8 +348,13 @@
           </div>
 
           <div class="form-group span-2">
-            <label class="form-label" for="f_productos">Productos esperados</label>
-            <input type="text" id="f_productos" class="form-input" placeholder="Separados por coma: artículo, prototipo, tesis…" />
+            <label class="form-label" for="f_productos_propuestos">Productos propuestos</label>
+            <input type="text" id="f_productos_propuestos" class="form-input" placeholder="Separados por coma: artículo, prototipo, tesis…" />
+          </div>
+
+          <div class="form-group span-2">
+            <label class="form-label" for="f_productos_logrados">Productos logrados</label>
+            <input type="text" id="f_productos_logrados" class="form-input" placeholder="Separados por coma: software, ponencia, informe…" />
           </div>
 
         </div>
@@ -349,6 +367,6 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=unal-20260512"></script>
+  <script src="js/app.js?v=unal-20260514"></script>
 </body>
 </html>
