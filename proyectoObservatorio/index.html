@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Observatorio de Investigación · Universidad Nacional de Colombia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Ancizar+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css?v=unal-20260512" />
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <div class="logo-mark">
+          <div class="logo-ring"></div>
+          <span class="logo-initials">UN</span>
+        </div>
+        <div class="header-text">
+          <span class="header-title">Observatorio de Investigación</span>
+          <span class="header-sub">Universidad Nacional de Colombia · Sede Bogotá</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn-import-projects" id="btnOpenImport">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Actualizar Excel
+        </button>
+        <button class="btn-add-project" id="btnOpenModal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nuevo Proyecto
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO STATS -->
+  <section class="hero-stats">
+    <div class="hero-inner">
+      <div class="stat-block">
+        <span class="stat-number" id="statTotal">—</span>
+        <span class="stat-label">Proyectos</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-block">
+        <span class="stat-number" id="statActive">—</span>
+        <span class="stat-label">En ejecución</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-block">
+        <span class="stat-number" id="statDepts">—</span>
+        <span class="stat-label">Departamentos</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-block">
+        <span class="stat-number" id="statCats">—</span>
+        <span class="stat-label">Categorías</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-layout">
+
+    <!-- SIDEBAR FILTERS -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Filtros</span>
+        <button class="btn-clear-filters" id="btnClearFilters">Limpiar</button>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">Buscar</label>
+        <div class="search-wrap">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="searchInput" class="filter-input search-input" placeholder="Nombre, objetivo, palabras clave…" />
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label" for="filterDept">Departamento</label>
+        <select id="filterDept" class="filter-select">
+          <option value="">Todos</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label" for="filterMacro">Macrocategoría</label>
+        <select id="filterMacro" class="filter-select">
+          <option value="">Todas</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label" for="filterSub">Subcategoría</label>
+        <select id="filterSub" class="filter-select">
+          <option value="">Todas</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label" for="filterYear">Año de inicio</label>
+        <select id="filterYear" class="filter-select">
+          <option value="">Todos</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label" for="filterProtection">Susceptible de protección</label>
+        <select id="filterProtection" class="filter-select">
+          <option value="">Todos</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label" for="filterEstado">Estado</label>
+        <select id="filterEstado" class="filter-select">
+          <option value="">Todos</option>
+        </select>
+      </div>
+    </aside>
+
+    <!-- CONTENT AREA -->
+    <div class="content-area">
+
+      <!-- TOOLBAR -->
+      <div class="toolbar">
+        <div class="results-count">
+          Mostrando <strong id="resultsCount">0</strong> proyectos
+        </div>
+        <div class="view-toggle">
+          <button class="view-btn active" id="btnGrid" title="Vista tarjetas">
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </button>
+          <button class="view-btn" id="btnTable" title="Vista tabla">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <button class="view-btn" id="btnCharts" title="Vista diagramas">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="10" width="3" height="7" rx="1"/><rect x="11" y="6" width="3" height="11" rx="1"/><rect x="16" y="3" width="3" height="14" rx="1"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- GRID VIEW -->
+      <div class="projects-grid" id="projectsGrid"></div>
+
+      <!-- TABLE VIEW -->
+      <div class="projects-table-wrap hidden" id="projectsTableWrap">
+        <table class="projects-table">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nombre del Proyecto</th>
+              <th>Departamento</th>
+              <th>Categoría</th>
+              <th>Protección</th>
+              <th>Año</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="projectsTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- CHARTS VIEW -->
+      <div class="charts-view hidden" id="chartsView">
+        <div class="charts-grid">
+          <section class="chart-panel chart-panel-wide">
+            <div class="chart-header">
+              <h3>Proyectos por departamento</h3>
+              <span id="chartDeptTotal">0 proyectos</span>
+            </div>
+            <div class="bar-chart" id="chartDepartments"></div>
+          </section>
+
+          <section class="chart-panel">
+            <div class="chart-header">
+              <h3>Distribución por estado</h3>
+            </div>
+            <div class="pie-chart-wrap" id="chartStatus"></div>
+          </section>
+
+          <section class="chart-panel">
+            <div class="chart-header">
+              <h3>Susceptible de protección</h3>
+            </div>
+            <div class="pie-chart-wrap" id="chartProtection"></div>
+          </section>
+
+          <section class="chart-panel chart-panel-wide">
+            <div class="chart-header">
+              <h3>Proyectos por año</h3>
+            </div>
+            <div class="bar-chart compact" id="chartYears"></div>
+          </section>
+
+          <section class="chart-panel chart-panel-wide">
+            <div class="chart-header">
+              <h3>Proyectos por macrocategoría</h3>
+            </div>
+            <div class="bar-chart" id="chartCategories"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- EMPTY STATE -->
+      <div class="empty-state hidden" id="emptyState">
+        <div class="empty-icon">◎</div>
+        <p class="empty-title">Sin resultados</p>
+        <p class="empty-sub">Intenta con otros filtros o términos de búsqueda.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- PROJECT DETAIL MODAL -->
+  <div class="modal-overlay hidden" id="detailModal">
+    <div class="modal-panel modal-detail">
+      <button class="modal-close" id="closeDetail">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div id="detailContent"></div>
+    </div>
+  </div>
+
+  <!-- IMPORT EXCEL MODAL -->
+  <div class="modal-overlay hidden" id="importModal">
+    <div class="modal-panel modal-import">
+      <div class="modal-form-header">
+        <h2 class="modal-form-title">Actualizar Proyectos desde Excel</h2>
+        <button class="modal-close" id="closeImport">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="import-body">
+        <label class="import-drop" for="importExcelFile">
+          <input type="file" id="importExcelFile" accept=".xlsx,.xls" />
+          <span class="import-drop-title">Seleccionar reporte Excel</span>
+          <span class="import-drop-sub" id="importFileName">Formato permitido: .xlsx o .xls</span>
+        </label>
+        <div class="import-actions">
+          <button type="button" class="btn-cancel" id="cancelImport">Cancelar</button>
+          <button type="button" class="btn-submit" id="btnPreviewImport">Vista previa</button>
+        </div>
+        <div class="import-summary hidden" id="importSummary"></div>
+        <div class="form-actions hidden" id="importConfirmActions">
+          <button type="button" class="btn-cancel" id="btnResetImport">Cambiar archivo</button>
+          <button type="button" class="btn-submit" id="btnConfirmImport">Confirmar actualización</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD PROJECT MODAL -->
+  <div class="modal-overlay hidden" id="addModal">
+    <div class="modal-panel modal-form">
+      <div class="modal-form-header">
+        <h2 class="modal-form-title">Registrar Nuevo Proyecto</h2>
+        <button class="modal-close" id="closeAdd">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <form id="addProjectForm" class="project-form">
+        <div class="form-grid">
+
+          <div class="form-group span-2">
+            <label class="form-label" for="f_nombre">Nombre del Proyecto *</label>
+            <input type="text" id="f_nombre" class="form-input" required placeholder="Título completo del proyecto" />
+          </div>
+
+          <div class="form-group span-2">
+            <label class="form-label" for="f_objetivo">Objetivo General *</label>
+            <textarea id="f_objetivo" class="form-input form-textarea" required placeholder="Describe el objetivo general del proyecto…"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="f_codigo">Código HERMES</label>
+            <input type="text" id="f_codigo" class="form-input" placeholder="Ej. 1234" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="f_departamento">Departamento / Instituto *</label>
+            <select id="f_departamento" class="form-input" required>
+              <option value="">Seleccionar…</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="f_facultad">Facultad</label>
+            <input type="text" id="f_facultad" class="form-input" placeholder="Ej. Ingeniería" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="f_macro">Macrocategoría *</label>
+            <select id="f_macro" class="form-input" required>
+              <option value="">Seleccionar…</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="f_sub">Subcategoría *</label>
+            <select id="f_sub" class="form-input" required>
+              <option value="">Seleccionar macrocategoría primero…</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="f_año_inicio">Año de inicio *</label>
+            <input type="number" id="f_año_inicio" class="form-input" min="2000" max="2035" required placeholder="2024" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="f_año_fin">Año de finalización</label>
+            <input type="number" id="f_año_fin" class="form-input" min="2000" max="2040" placeholder="2026" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="f_estado">Estado *</label>
+            <select id="f_estado" class="form-input" required>
+              <option value="">Seleccionar…</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="f_ods">ODS Principal</label>
+            <input type="text" id="f_ods" class="form-input" placeholder="Objetivo de Desarrollo Sostenible" />
+          </div>
+
+          <div class="form-group span-2">
+            <label class="form-label" for="f_palabras">Palabras clave</label>
+            <input type="text" id="f_palabras" class="form-input" placeholder="Separadas por coma: agua, sostenibilidad, IA…" />
+          </div>
+
+          <div class="form-group span-2">
+            <label class="form-label" for="f_productos">Productos esperados</label>
+            <input type="text" id="f_productos" class="form-input" placeholder="Separados por coma: artículo, prototipo, tesis…" />
+          </div>
+
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" id="cancelAdd">Cancelar</button>
+          <button type="submit" class="btn-submit">Guardar Proyecto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/app.js?v=unal-20260512"></script>
+</body>
+</html>
