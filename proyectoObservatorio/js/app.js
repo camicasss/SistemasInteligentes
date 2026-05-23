@@ -1,15 +1,9 @@
-/* ═══════════════════════════════════════════════════════════════
-   OBSERVATORIO DE INVESTIGACIÓN · UNAL BOGOTÁ
-   app.js — Lógica principal
-═══════════════════════════════════════════════════════════════ */
-
 // ─── ESTADO GLOBAL ───────────────────────────────────────────
 let allProjects    = [];
 let allCategories  = {};
-let filters        = { search: '', dept: '', group: '', macro: '', sub: '', year: '', estado: '', protection: '' };
-let viewMode       = 'grid'; // 'grid' | 'table' | 'charts'
+let filters        = { search: '', dept: '', macro: '', sub: '', year: '', estado: '' };
+let viewMode       = 'grid'; // 'grid' | 'table'
 let apiAvailable   = false;
-let importFile     = null;
 
 // ─── PALETA DE COLORES POR MACROCATEGORÍA ────────────────────
 const CAT_COLORS = {
@@ -65,41 +59,19 @@ async function loadData() {
 // ─── INICIALIZACIÓN DE FILTROS ────────────────────────────────
 function initFilters() {
   const depts  = [...new Set(allProjects.map(p => p.departamento).filter(Boolean))].sort();
-  const groups = getResearchGroups();
   const years  = [...new Set(allProjects.map(p => p.año_inicio).filter(Boolean))].sort((a,b) => b - a);
   const states = getProjectStates();
-  const protectionValues = getProtectionValues();
   const macros = allCategories.macrocategorias || [];
 
-  resetSelect('filterDept', 'Todos');
-  resetSelect('filterGroup', 'Todos');
-  resetSelect('filterYear', 'Todos');
-  resetSelect('filterMacro', 'Todas');
-  resetSelect('filterProtection', 'Todos');
-  resetSelect('filterEstado', 'Todos');
-  resetSelect('f_departamento', 'Seleccionar…');
-  resetSelect('f_estado', 'Seleccionar…');
-  resetSelect('f_macro', 'Seleccionar…');
-  document.getElementById('filterSub').innerHTML = '<option value="">Todas</option>';
-  document.getElementById('f_sub').innerHTML = '<option value="">Seleccionar macrocategoría primero…</option>';
-
   populateSelect('filterDept',  depts,  d => ({ value: d, label: d }));
-  populateSelect('filterGroup', groups, g => ({ value: g, label: g }));
   populateSelect('filterYear',  years,  y => ({ value: y, label: y }));
   populateSelect('filterMacro', macros, m => ({ value: m.id, label: `${m.id} — ${m.nombre}` }));
-  populateSelect('filterProtection', protectionValues, value => ({ value, label: value }));
-  populateSelect('filterEstado', states, s => ({ value: s, label: s }));
+  renderEstadoPills(states);
 
   // Selects del formulario
   populateSelect('f_departamento', allCategories.departamentos || depts, d => ({ value: d, label: d }));
   populateSelect('f_estado', states, s => ({ value: s, label: s }));
   populateMacroSelect('f_macro', macros);
-}
-
-function resetSelect(id, placeholder) {
-  const sel = document.getElementById(id);
-  if (!sel) return;
-  sel.innerHTML = `<option value="">${placeholder}</option>`;
 }
 
 function getProjectStates() {
@@ -111,20 +83,18 @@ function getProjectStates() {
   return states;
 }
 
-function getResearchGroups() {
-  return [...new Set(
-    allProjects
-      .map(p => p.grupo_de_investigacion)
-      .filter(Boolean)
-  )].sort();
-}
-
-function getProtectionValues() {
-  return [...new Set(
-    allProjects
-      .map(p => p.proteccion_producto)
-      .filter(Boolean)
-  )].sort();
+function renderEstadoPills(states) {
+  const wrap = document.getElementById('estadoPills');
+  if (!wrap) return;
+  wrap.innerHTML = '<button class="pill active" data-estado="">Todos</button>';
+  states.forEach(state => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pill';
+    btn.dataset.estado = state;
+    btn.textContent = state;
+    wrap.appendChild(btn);
+  });
 }
 
 function populateSelect(id, items, mapper) {
@@ -150,6 +120,26 @@ function populateMacroSelect(id, macros) {
   });
 }
 
+function resetFilterOptions() {
+  const defaults = {
+    filterDept: 'Todos',
+    filterYear: 'Todos',
+    filterMacro: 'Todas',
+    filterSub: 'Todas',
+    f_departamento: 'Seleccionar…',
+    f_estado: 'Seleccionar…',
+    f_macro: 'Seleccionar…',
+    f_sub: 'Seleccionar macrocategoría primero…'
+  };
+
+  Object.entries(defaults).forEach(([id, label]) => {
+    const sel = document.getElementById(id);
+    if (sel) sel.innerHTML = `<option value="">${label}</option>`;
+  });
+
+  renderEstadoPills([]);
+}
+
 // ─── LISTENERS ────────────────────────────────────────────────
 function initEventListeners() {
   // Filtros
@@ -160,11 +150,6 @@ function initEventListeners() {
 
   document.getElementById('filterDept').addEventListener('change', e => {
     filters.dept = e.target.value;
-    renderAll();
-  });
-
-  document.getElementById('filterGroup').addEventListener('change', e => {
-    filters.group = e.target.value;
     renderAll();
   });
 
@@ -186,13 +171,13 @@ function initEventListeners() {
     renderAll();
   });
 
-  document.getElementById('filterProtection').addEventListener('change', e => {
-    filters.protection = e.target.value;
-    renderAll();
-  });
-
-  document.getElementById('filterEstado').addEventListener('change', e => {
-    filters.estado = e.target.value;
+  // Estado pills
+  document.getElementById('estadoPills').addEventListener('click', e => {
+    const pill = e.target.closest('.pill');
+    if (!pill) return;
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    filters.estado = pill.dataset.estado;
     renderAll();
   });
 
@@ -201,7 +186,6 @@ function initEventListeners() {
   // Vista
   document.getElementById('btnGrid').addEventListener('click', () => setView('grid'));
   document.getElementById('btnTable').addEventListener('click', () => setView('table'));
-  document.getElementById('btnCharts').addEventListener('click', () => setView('charts'));
 
   // Modal detalle
   document.getElementById('closeDetail').addEventListener('click', closeDetailModal);
@@ -217,6 +201,15 @@ function initEventListeners() {
     if (e.target === e.currentTarget) closeAddModal();
   });
 
+  // Modal importar datos
+  document.getElementById('btnOpenImport').addEventListener('click', openImportModal);
+  document.getElementById('closeImport').addEventListener('click', closeImportModal);
+  document.getElementById('cancelImport').addEventListener('click', closeImportModal);
+  document.getElementById('importModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeImportModal();
+  });
+  document.getElementById('importDataForm').addEventListener('submit', handleImportData);
+
   // Macrocategoría en formulario → actualizar subcategorías
   document.getElementById('f_macro').addEventListener('change', e => {
     updateFormSubcats(e.target.value);
@@ -224,18 +217,6 @@ function initEventListeners() {
 
   // Formulario submit
   document.getElementById('addProjectForm').addEventListener('submit', handleAddProject);
-
-  // Importación Excel
-  document.getElementById('btnOpenImport').addEventListener('click', openImportModal);
-  document.getElementById('closeImport').addEventListener('click', closeImportModal);
-  document.getElementById('cancelImport').addEventListener('click', closeImportModal);
-  document.getElementById('btnResetImport').addEventListener('click', resetImportModal);
-  document.getElementById('btnPreviewImport').addEventListener('click', previewExcelImport);
-  document.getElementById('btnConfirmImport').addEventListener('click', confirmExcelImport);
-  document.getElementById('importExcelFile').addEventListener('change', handleImportFileChange);
-  document.getElementById('importModal').addEventListener('click', e => {
-    if (e.target === e.currentTarget) closeImportModal();
-  });
 
   // Teclado ESC
   document.addEventListener('keydown', e => {
@@ -281,18 +262,20 @@ function getFiltered() {
     if (filters.search) {
       const haystack = [
         p.nombre, p.objetivo, p.departamento,
-        p.grupo_de_investigacion, p.macrocategoria, p.subcategoria,
-        ...(p.palabras_clave || [])
+        p.grupo_investigacion, p.investigador_principal,
+        p.macrocategoria, p.subcategoria,
+        ...(p.palabras_clave || []),
+        ...(p.productos_esperados || []),
+        ...(p.productos_logrados || []),
+        ...(p.nombres_productos_logrados || [])
       ].join(' ').toLowerCase();
       if (!haystack.includes(filters.search)) return false;
     }
     if (filters.dept   && p.departamento       !== filters.dept)               return false;
-    if (filters.group  && p.grupo_de_investigacion !== filters.group)          return false;
     if (filters.macro  && p.macrocategoria_id  !== filters.macro)              return false;
     if (filters.sub    && p.subcategoria_id    !== filters.sub)                return false;
     if (filters.year   && p.año_inicio         !== filters.year)               return false;
     if (filters.estado && p.estado             !== filters.estado)             return false;
-    if (filters.protection && p.proteccion_producto !== filters.protection)     return false;
     return true;
   });
 }
@@ -304,8 +287,7 @@ function renderAll() {
   document.getElementById('resultsCount').textContent = filtered.length;
 
   if (viewMode === 'grid') renderGrid(filtered);
-  else if (viewMode === 'table') renderTable(filtered);
-  else renderCharts(filtered);
+  else renderTable(filtered);
 
   const empty = document.getElementById('emptyState');
   if (filtered.length === 0) empty.classList.remove('hidden');
@@ -347,7 +329,6 @@ function renderGrid(projects) {
   grid.innerHTML = '';
   grid.classList.remove('hidden');
   document.getElementById('projectsTableWrap').classList.add('hidden');
-  document.getElementById('chartsView').classList.add('hidden');
 
   projects.forEach((p, i) => {
     const color = CAT_COLORS[p.macrocategoria_id] || '#11897D';
@@ -362,7 +343,7 @@ function renderGrid(projects) {
       </div>
       <p class="card-name">${p.nombre}</p>
       <p class="card-dept">${p.departamento}</p>
-      <p class="card-group">${p.grupo_de_investigacion || 'Sin grupo registrado'}</p>
+      ${p.grupo_investigacion ? `<p class="card-group">${p.grupo_investigacion}</p>` : ''}
       <div class="card-tags">
         <span class="card-tag tag-cat">${p.macrocategoria_id} · ${shortCat(p.macrocategoria)}</span>
         ${(p.palabras_clave || []).slice(0,2).map(k => `<span class="card-tag">${k}</span>`).join('')}
@@ -383,7 +364,6 @@ function renderGrid(projects) {
 // ─── TABLE ────────────────────────────────────────────────────
 function renderTable(projects) {
   document.getElementById('projectsGrid').classList.add('hidden');
-  document.getElementById('chartsView').classList.add('hidden');
   const wrap = document.getElementById('projectsTableWrap');
   wrap.classList.remove('hidden');
 
@@ -396,121 +376,13 @@ function renderTable(projects) {
       <td class="td-code">HERMES ${p.codigo_hermes || '—'}</td>
       <td class="td-name" title="${p.nombre}">${p.nombre}</td>
       <td class="td-dept" title="${p.departamento}">${p.departamento}</td>
-      <td class="td-group" title="${p.grupo_de_investigacion || '—'}">${p.grupo_de_investigacion || '—'}</td>
       <td class="td-cat" title="${p.macrocategoria}">${p.macrocategoria_id} · ${shortCat(p.macrocategoria)}</td>
-      <td class="td-protection" title="${p.proteccion_producto || '—'}">${p.proteccion_producto || '—'}</td>
       <td>${p.año_inicio}</td>
       <td><span class="card-estado ${estadoClass(p.estado)}">${p.estado}</span></td>
     `;
     tr.addEventListener('click', () => openDetailModal(p));
     tbody.appendChild(tr);
   });
-}
-
-// ─── CHARTS ───────────────────────────────────────────────────
-function renderCharts(projects) {
-  document.getElementById('projectsGrid').classList.add('hidden');
-  document.getElementById('projectsTableWrap').classList.add('hidden');
-  document.getElementById('chartsView').classList.remove('hidden');
-
-  document.getElementById('chartDeptTotal').textContent = `${projects.length} proyectos`;
-  renderBarChart('chartDepartments', countBy(projects, p => p.departamento || 'Sin departamento'), {
-    limit: 8,
-    colorFor: (_, index) => chartColor(index)
-  });
-  renderBarChart('chartYears', countBy(projects, p => p.año_inicio || 'Sin año'), {
-    sort: 'key-desc',
-    limit: 12,
-    colorFor: (_, index) => chartColor(index + 3)
-  });
-  renderBarChart('chartCategories', countBy(projects, p => `${p.macrocategoria_id || 'M00'} · ${shortCat(p.macrocategoria || 'Sin asignar')}`), {
-    limit: 10,
-    colorFor: label => CAT_COLORS[label.split(' · ')[0]] || chartColor(0)
-  });
-  renderPieChart('chartStatus', countBy(projects, p => p.estado || 'Sin estado'), label => statusColor(label));
-  renderPieChart('chartProtection', countBy(projects, p => p.proteccion_producto || 'Sin dato'), label => protectionColor(label));
-}
-
-function countBy(items, getter) {
-  return items.reduce((acc, item) => {
-    const key = String(getter(item));
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {});
-}
-
-function sortedEntries(counts, options = {}) {
-  const entries = Object.entries(counts);
-  if (options.sort === 'key-desc') {
-    entries.sort((a, b) => String(b[0]).localeCompare(String(a[0])));
-  } else {
-    entries.sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
-  }
-  return entries.slice(0, options.limit || entries.length);
-}
-
-function renderBarChart(id, counts, options = {}) {
-  const el = document.getElementById(id);
-  const entries = sortedEntries(counts, options);
-  const max = Math.max(...entries.map(([, value]) => value), 1);
-
-  if (!entries.length) {
-    el.innerHTML = '<p class="chart-empty">Sin datos para visualizar.</p>';
-    return;
-  }
-
-  el.innerHTML = entries.map(([label, value], index) => {
-    const width = Math.max((value / max) * 100, 2);
-    const color = options.colorFor ? options.colorFor(label, index) : chartColor(index);
-    return `
-      <div class="bar-row">
-        <div class="bar-label" title="${label}">${label}</div>
-        <div class="bar-track">
-          <div class="bar-fill" style="width:${width}%;background:${color}"></div>
-        </div>
-        <div class="bar-value">${value}</div>
-      </div>
-    `;
-  }).join('');
-}
-
-function renderPieChart(id, counts, colorFor) {
-  const el = document.getElementById(id);
-  const entries = sortedEntries(counts);
-  const total = entries.reduce((sum, [, value]) => sum + value, 0);
-
-  if (!entries.length || total === 0) {
-    el.innerHTML = '<p class="chart-empty">Sin datos para visualizar.</p>';
-    return;
-  }
-
-  let start = 0;
-  const segments = entries.map(([label, value], index) => {
-    const end = start + (value / total) * 100;
-    const color = colorFor ? colorFor(label, index) : chartColor(index);
-    const segment = `${color} ${start}% ${end}%`;
-    start = end;
-    return segment;
-  }).join(', ');
-
-  const legend = entries.map(([label, value], index) => {
-    const color = colorFor ? colorFor(label, index) : chartColor(index);
-    const pct = Math.round((value / total) * 100);
-    return `
-      <div class="pie-legend-row">
-        <span class="legend-dot" style="background:${color}"></span>
-        <span class="legend-label" title="${label}">${label}</span>
-        <strong>${value} · ${pct}%</strong>
-      </div>
-    `;
-  }).join('');
-
-  el.innerHTML = `
-    <div class="pie-chart" style="background:conic-gradient(${segments})">
-      <span>${total}</span>
-    </div>
-    <div class="pie-legend">${legend}</div>
-  `;
 }
 
 // ─── MODAL DETALLE ────────────────────────────────────────────
@@ -520,10 +392,9 @@ function openDetailModal(p) {
   const content = document.getElementById('detailContent');
 
   const kwHTML = (p.palabras_clave || []).map(k => `<span class="detail-kw">${k}</span>`).join('');
-  const proposedProducts = p.productos_propuestos || p.productos_esperados || [];
-  const achievedProducts = p.productos_logrados || [];
-  const proposedHTML = proposedProducts.map(pr => `<li>${pr}</li>`).join('');
-  const achievedHTML = achievedProducts.map(pr => `<li>${pr}</li>`).join('');
+  const prodEsperadosHTML = (p.productos_esperados || []).map(pr => `<li>${pr}</li>`).join('');
+  const prodLogradosHTML = (p.productos_logrados || []).map(pr => `<li>${pr}</li>`).join('');
+  const nombresLogradosHTML = (p.nombres_productos_logrados || []).map(pr => `<li>${pr}</li>`).join('');
 
   content.innerHTML = `
     <div class="detail-category-bar">
@@ -550,21 +421,23 @@ function openDetailModal(p) {
         <div class="meta-item-label">Departamento / Instituto</div>
         <div class="meta-item-val">${p.departamento}</div>
       </div>
+      ${p.grupo_investigacion ? `
       <div class="meta-item">
         <div class="meta-item-label">Grupo de investigación</div>
-        <div class="meta-item-val">${p.grupo_de_investigacion || '—'}</div>
-      </div>
+        <div class="meta-item-val">${p.grupo_investigacion}</div>
+      </div>` : ''}
+      ${p.investigador_principal ? `
+      <div class="meta-item">
+        <div class="meta-item-label">Investigador principal</div>
+        <div class="meta-item-val">${p.investigador_principal}</div>
+      </div>` : ''}
       <div class="meta-item">
         <div class="meta-item-label">Período</div>
-        <div class="meta-item-val">${p.año_inicio || '—'}</div>
+        <div class="meta-item-val">${p.año_inicio}${p.año_fin ? ' — ' + p.año_fin : ' — en curso'}</div>
       </div>
       <div class="meta-item">
         <div class="meta-item-label">Subcategoría</div>
         <div class="meta-item-val">${p.subcategoria_id} · ${p.subcategoria}</div>
-      </div>
-      <div class="meta-item">
-        <div class="meta-item-label">Es susceptible de protección - producto</div>
-        <div class="meta-item-val">${p.proteccion_producto || '—'}</div>
       </div>
     </div>
 
@@ -586,16 +459,34 @@ function openDetailModal(p) {
       <div class="detail-keywords">${kwHTML}</div>
     </div>` : ''}
 
-    ${proposedHTML ? `
+    ${prodEsperadosHTML ? `
     <div class="detail-section">
-      <div class="detail-section-label">Productos propuestos</div>
-      <ul class="detail-products-list">${proposedHTML}</ul>
+      <div class="detail-section-label">Productos esperados</div>
+      <ul class="detail-products-list">${prodEsperadosHTML}</ul>
     </div>` : ''}
 
-    ${achievedHTML ? `
+    ${prodLogradosHTML ? `
     <div class="detail-section">
       <div class="detail-section-label">Productos logrados</div>
-      <ul class="detail-products-list">${achievedHTML}</ul>
+      <ul class="detail-products-list">${prodLogradosHTML}</ul>
+    </div>` : ''}
+
+    ${nombresLogradosHTML ? `
+    <div class="detail-section">
+      <div class="detail-section-label">Nombres de productos logrados</div>
+      <ul class="detail-products-list">${nombresLogradosHTML}</ul>
+    </div>` : ''}
+
+    ${p.cumplio_con_la_entrega_del_producto ? `
+    <div class="detail-section">
+      <div class="detail-section-label">Cumplió con la entrega del producto</div>
+      <p class="detail-section-text">${p.cumplio_con_la_entrega_del_producto}</p>
+    </div>` : ''}
+
+    ${p.es_suceptible_de_proteccion_producto ? `
+    <div class="detail-section">
+      <div class="detail-section-label">Susceptible de protección</div>
+      <p class="detail-section-text">${p.es_suceptible_de_proteccion_producto}</p>
     </div>` : ''}
   `;
 
@@ -631,9 +522,7 @@ async function handleAddProject(e) {
 
   const palabrasClave = document.getElementById('f_palabras').value
     .split(',').map(s => s.trim()).filter(Boolean);
-  const productosPropuestos = document.getElementById('f_productos_propuestos').value
-    .split(',').map(s => s.trim()).filter(Boolean);
-  const productosLogrados = document.getElementById('f_productos_logrados').value
+  const productos = document.getElementById('f_productos').value
     .split(',').map(s => s.trim()).filter(Boolean);
 
   const newProject = {
@@ -641,9 +530,11 @@ async function handleAddProject(e) {
     codigo_hermes:    document.getElementById('f_codigo').value.trim() || '—',
     nombre:           document.getElementById('f_nombre').value.trim(),
     objetivo:         document.getElementById('f_objetivo').value.trim(),
+    grupo_investigacion: document.getElementById('f_grupo').value.trim(),
+    investigador_principal: document.getElementById('f_investigador').value.trim(),
+    email_investigador_principal: '',
     departamento:     document.getElementById('f_departamento').value,
     facultad:         document.getElementById('f_facultad').value.trim(),
-    grupo_de_investigacion: document.getElementById('f_grupo').value.trim(),
     macrocategoria_id: macroId,
     macrocategoria:   macroData?.nombre || '',
     subcategoria_id:  subId,
@@ -652,11 +543,8 @@ async function handleAddProject(e) {
     año_fin:          parseInt(document.getElementById('f_año_fin').value) || null,
     estado:           document.getElementById('f_estado').value,
     ods_principal:    document.getElementById('f_ods').value.trim(),
-    proteccion_producto: '',
     palabras_clave:   palabrasClave,
-    productos_propuestos: productosPropuestos,
-    productos_logrados: productosLogrados,
-    productos_esperados: [...new Set([...productosPropuestos, ...productosLogrados])]
+    productos_esperados: productos
   };
 
   try {
@@ -687,13 +575,12 @@ async function createProject(project) {
   return response.json();
 }
 
-// ─── IMPORTACIÓN EXCEL ────────────────────────────────────────
+// ─── MODAL IMPORTAR DATOS ─────────────────────────────────────
 function openImportModal() {
   if (!apiAvailable) {
-    showToast('La importación requiere ejecutar el backend FastAPI.');
+    showToast('La actualización de Excel requiere ejecutar la app con FastAPI.');
     return;
   }
-  resetImportModal();
   document.getElementById('importModal').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
 }
@@ -701,138 +588,55 @@ function openImportModal() {
 function closeImportModal() {
   document.getElementById('importModal').classList.add('hidden');
   document.body.style.overflow = '';
+  document.getElementById('importDataForm').reset();
+  setImportLoading(false);
 }
 
-function resetImportModal() {
-  importFile = null;
-  document.getElementById('importExcelFile').value = '';
-  document.getElementById('importFileName').textContent = 'Formato permitido: .xlsx o .xls';
-  document.getElementById('importSummary').classList.add('hidden');
-  document.getElementById('importSummary').innerHTML = '';
-  document.getElementById('importConfirmActions').classList.add('hidden');
+function setImportLoading(isLoading) {
+  const submit = document.getElementById('submitImport');
+  submit.disabled = isLoading;
+  submit.textContent = isLoading ? 'Actualizando…' : 'Actualizar Base';
 }
 
-function handleImportFileChange(e) {
-  importFile = e.target.files?.[0] || null;
-  document.getElementById('importFileName').textContent = importFile
-    ? importFile.name
-    : 'Formato permitido: .xlsx o .xls';
-}
+async function handleImportData(e) {
+  e.preventDefault();
 
-async function previewExcelImport() {
-  if (!importFile) {
-    showToast('Selecciona primero un archivo Excel.');
+  const projectsFile = document.getElementById('projectsFile').files[0];
+  const productsFile = document.getElementById('productsFile').files[0];
+
+  if (!projectsFile || !productsFile) {
+    showToast('Selecciona los dos archivos Excel antes de actualizar.');
     return;
   }
 
-  setImportLoading(true, 'Analizando…');
-  try {
-    const summary = await sendExcelImport(true);
-    renderImportSummary(summary);
-    document.getElementById('importConfirmActions').classList.remove('hidden');
-  } catch (error) {
-    console.error('Error importando Excel:', error);
-    showToast(error.message || 'No se pudo analizar el Excel.');
-  } finally {
-    setImportLoading(false, 'Vista previa');
-  }
-}
-
-async function confirmExcelImport() {
-  if (!importFile) {
-    showToast('Selecciona primero un archivo Excel.');
-    return;
-  }
-
-  setImportLoading(true, 'Actualizando…');
-  document.getElementById('btnConfirmImport').disabled = true;
-  try {
-    const summary = await sendExcelImport(false);
-    if (Array.isArray(summary.projects)) {
-      allProjects = summary.projects;
-    } else {
-      await loadData();
-    }
-    initFilters();
-    renderAll();
-    renderImportSummary(summary);
-    showToast('Base de proyectos actualizada desde Excel.');
-  } catch (error) {
-    console.error('Error confirmando importación:', error);
-    showToast(error.message || 'No se pudo actualizar la base.');
-  } finally {
-    setImportLoading(false, 'Vista previa');
-    document.getElementById('btnConfirmImport').disabled = false;
-  }
-}
-
-async function sendExcelImport(dryRun) {
   const formData = new FormData();
-  formData.append('file', importFile);
+  formData.append('projects_file', projectsFile);
+  formData.append('products_file', productsFile);
 
-  const response = await fetch(`/api/projects/import-excel?dry_run=${dryRun}`, {
-    method: 'POST',
-    body: formData
-  });
+  try {
+    setImportLoading(true);
+    const response = await fetch('/api/import-data', {
+      method: 'POST',
+      body: formData
+    });
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.detail || 'No se pudo procesar el Excel.');
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || 'No se pudo actualizar la base de datos.');
+    }
+
+    allProjects = payload.projects || [];
+    resetFilterOptions();
+    initFilters();
+    closeImportModal();
+    clearFilters();
+    showToast(`Base actualizada: ${payload.projects_count || allProjects.length} proyectos cargados.`);
+  } catch (error) {
+    console.error('Error importando datos:', error);
+    showToast(error.message || 'Error al importar los archivos.');
+  } finally {
+    setImportLoading(false);
   }
-  return data;
-}
-
-function renderImportSummary(summary) {
-  const labels = [
-    ['archivo_procesado', 'Archivo'],
-    ['proyectos_en_excel', 'Proyectos en Excel'],
-    ['proyectos_nuevos', 'Proyectos nuevos'],
-    ['proyectos_actualizados', 'Proyectos actualizados'],
-    ['proyectos_sin_cambios', 'Proyectos sin cambios'],
-    ['proyectos_sin_codigo', 'Proyectos sin código'],
-    ['proyectos_autoclasificados', 'Pendientes de clasificación'],
-    ['clasificaciones_revisadas_conservadas', 'Clasificaciones revisadas conservadas'],
-    ['actualiza_productos_propuestos', 'Actualiza productos propuestos'],
-    ['actualiza_productos_logrados', 'Actualiza productos logrados'],
-    ['actualiza_proteccion_producto', 'Actualiza susceptible de protección'],
-    ['dry_run', 'Modo vista previa']
-  ];
-
-  const html = labels.map(([key, label]) => `
-    <div class="import-summary-row">
-      <span>${label}</span>
-      <strong>${formatSummaryValue(summary[key])}</strong>
-    </div>
-  `).join('');
-
-  const errors = (summary.errores || []).map(err => `
-    <div class="import-summary-row">
-      <span>Error</span>
-      <strong>${err}</strong>
-    </div>
-  `).join('');
-  const warnings = (summary.advertencias || []).map(warning => `
-    <div class="import-summary-row">
-      <span>Advertencia</span>
-      <strong>${warning}</strong>
-    </div>
-  `).join('');
-
-  const box = document.getElementById('importSummary');
-  box.innerHTML = html + warnings + errors;
-  box.classList.remove('hidden');
-}
-
-function formatSummaryValue(value) {
-  if (typeof value === 'boolean') return value ? 'Sí' : 'No';
-  if (value === null || value === undefined || value === '') return '—';
-  return value;
-}
-
-function setImportLoading(isLoading, label) {
-  const btn = document.getElementById('btnPreviewImport');
-  btn.disabled = isLoading;
-  btn.textContent = label;
 }
 
 // ─── PERSISTENCIA LOCAL ───────────────────────────────────────
@@ -853,22 +657,20 @@ function setView(mode) {
   viewMode = mode;
   document.getElementById('btnGrid').classList.toggle('active',  mode === 'grid');
   document.getElementById('btnTable').classList.toggle('active', mode === 'table');
-  document.getElementById('btnCharts').classList.toggle('active', mode === 'charts');
   renderAll();
 }
 
 // ─── LIMPIAR FILTROS ──────────────────────────────────────────
 function clearFilters() {
-  filters = { search: '', dept: '', group: '', macro: '', sub: '', year: '', estado: '', protection: '' };
+  filters = { search: '', dept: '', macro: '', sub: '', year: '', estado: '' };
   document.getElementById('searchInput').value = '';
   document.getElementById('filterDept').value  = '';
-  document.getElementById('filterGroup').value = '';
   document.getElementById('filterMacro').value = '';
   document.getElementById('filterSub').value   = '';
   document.getElementById('filterYear').value  = '';
-  document.getElementById('filterProtection').value = '';
-  document.getElementById('filterEstado').value = '';
   document.getElementById('filterSub').innerHTML = '<option value="">Todas</option>';
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  document.querySelector('.pill[data-estado=""]').classList.add('active');
   renderAll();
 }
 
@@ -883,53 +685,10 @@ function showToast(msg) {
 
 // ─── HELPERS ──────────────────────────────────────────────────
 function estadoClass(estado) {
-  const classes = {
-    'Aprobado': 'estado-aprobado',
-    'Aprobado por OCAD': 'estado-aprobado-ocad',
-    'Banco Financiable': 'estado-banco-financiable',
-    'Cancelado': 'estado-cancelado',
-    'Elegible': 'estado-elegible',
-    'En ejecución': 'estado-ejecucion',
-    'En Legalización': 'estado-legalizacion',
-    'Finalizado': 'estado-finalizado',
-    'Ingresando Proyecto': 'estado-ingresando',
-    'No aprobado': 'estado-no-aprobado',
-    'No cumplió requisitos': 'estado-no-requisitos',
-    'Propuesto': 'estado-propuesto',
-    'Suspendido': 'estado-suspendido'
-  };
-  return classes[estado] || 'estado-otro';
-}
-
-function chartColor(index) {
-  const colors = ['#11897D', '#162A63', '#B1C92E', '#0F8C80', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#10b981', '#f97316'];
-  return colors[index % colors.length];
-}
-
-function statusColor(label) {
-  const colors = {
-    'Aprobado': '#16a34a',
-    'Aprobado por OCAD': '#059669',
-    'Banco Financiable': '#ca8a04',
-    'Cancelado': '#dc2626',
-    'Elegible': '#65a30d',
-    'En ejecución': '#0d9488',
-    'En Legalización': '#0284c7',
-    'Finalizado': '#4f46e5',
-    'Ingresando Proyecto': '#9333ea',
-    'No aprobado': '#e11d48',
-    'No cumplió requisitos': '#64748b',
-    'Propuesto': '#ea580c',
-    'Suspendido': '#d97706'
-  };
-  return colors[label] || '#6b7280';
-}
-
-function protectionColor(label) {
-  if (label === 'Si') return '#11897D';
-  if (label === 'No') return '#66728B';
-  if (label === 'No ; Si') return '#B1C92E';
-  return '#cbd5e1';
+  if (estado === 'En ejecución') return 'estado-ejecucion';
+  if (estado === 'Finalizado')   return 'estado-finalizado';
+  if (estado === 'Suspendido')   return 'estado-suspendido';
+  return 'estado-otro';
 }
 
 function shortCat(name) {

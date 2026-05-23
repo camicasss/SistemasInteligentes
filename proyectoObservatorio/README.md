@@ -1,8 +1,8 @@
 # Observatorio de Investigación UNAL Bogotá
 
-Proyecto grupal para visualizar, filtrar, clasificar y gestionar información de proyectos de investigación de la Universidad Nacional de Colombia, Sede Bogotá.
+Proyecto grupal para visualizar, filtrar y gestionar información de proyectos de investigación de la Universidad Nacional de Colombia, Sede Bogotá.
 
-El sistema parte de un archivo maestro en Excel, construye una base de datos local y expone un dashboard web con filtros, tarjetas, tabla de proyectos y formulario de registro.
+El sistema parte de los archivos Excel descargados desde la fuente institucional, construye una base de datos local consolidada y expone un dashboard web con filtros, tarjetas, tabla de proyectos y formulario de registro.
 
 ## Objetivo
 
@@ -10,7 +10,6 @@ Desarrollar una plataforma web que permita:
 
 - Consultar proyectos de investigación de forma organizada.
 - Filtrar proyectos por departamento, año, estado y categoría.
-- Preparar los datos para un modelo de clasificación automática.
 - Registrar nuevos proyectos desde una interfaz web.
 - Evolucionar hacia una base de datos compartida para trabajo colaborativo.
 
@@ -30,8 +29,7 @@ investigacion-unal/
 │   ├── processed/              
 │   └── dashboard/             
 ├── scripts/
-│   ├── limpieza.py            
-│   └── build_database.py       
+│   └── process_raw_products.py
 ├── requirements.txt          
 ├── Procfile                  
 └── README.md
@@ -46,13 +44,7 @@ venv/bin/pip install -r requirements.txt
 venv/bin/python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Alternativamente, para abrir el proyecto automáticamente en tu navegador:
-
-```bash
-python run.py
-```
-
-Luego abrirá:
+Luego abrir:
 
 ```text
 http://localhost:8000
@@ -72,7 +64,7 @@ pip install -r requirements.txt
 |--------|----------|-------------|
 | GET | `/api/projects` | Lista los proyectos desde SQLite |
 | POST | `/api/projects` | Registra un proyecto nuevo en SQLite |
-| POST | `/api/projects/import-excel` | Previsualiza o confirma una actualización masiva desde Excel |
+| POST | `/api/import-data` | Recibe los dos Excel raw, reconstruye SQLite y actualiza el JSON del dashboard |
 | GET | `/api/categories` | Lista categorías, subcategorías y estados |
 | GET | `/api/health` | Verifica que el backend esté activo |
 
@@ -97,58 +89,38 @@ En este modo el dashboard usa el archivo `data/dashboard/proyectos_from_db.json`
 El flujo de datos del proyecto es:
 
 ```text
-Excel original
-→ scripts/limpieza.py
-→ data/processed/dataset_maestro_proyectos.xlsx
-→ scripts/build_database.py
+Excel maestro de proyectos/grupos + Excel de productos
+→ scripts/process_raw_products.py
+→ data/processed/datos_limpios.xlsx
 → data/processed/proyectos.db
 → API FastAPI
 → Dashboard web
 ```
 
-Archivos generados:
+Archivos necesarios:
 
 | Archivo | Uso |
 |---------|-----|
-| `data/processed/dataset_maestro_proyectos.xlsx` | Dataset limpio y agrupado por proyecto |
+| `data/raw/reporteProyectoCoordinacionBas.xlsx` | Archivo maestro de proyectos. De aquí salen datos generales, investigador principal y grupo de investigación |
+| `data/raw/reporteProyectoCoordinacionBasProductos.xlsx` | Archivo de productos. De aquí salen productos propuestos/logrados y susceptibilidad de protección |
+| `data/processed/datos_limpios.xlsx` | Excel limpio con los mismos campos que consume la visualización |
 | `data/processed/proyectos.db` | Base de datos SQLite usada por el backend |
 | `data/dashboard/proyectos_from_db.json` | JSON de respaldo para modo estático |
-| `data/processed/ml_dataset.csv` | Dataset textual para el modelo de clasificación |
+| `data/dashboard/categorias.json` | Catálogo de macrocategorías, subcategorías y estados |
 
 ## Regenerar los datos
 
 Desde la raíz del proyecto:
 
 ```bash
-venv/bin/python scripts/limpieza.py
-venv/bin/python scripts/build_database.py
+venv/bin/python scripts/process_raw_products.py
 ```
 
-El primer comando limpia el Excel original ubicado en `data/raw/`. El segundo comando reconstruye la base SQLite, el JSON del dashboard y el CSV para machine learning.
+El script lee ambos Excel ubicados en `data/raw/`, los une por `codigo_hermes`, agrupa los productos por proyecto y reconstruye el Excel limpio, la base SQLite y el JSON que usa el dashboard.
 
-## Actualización periódica desde Excel
+Si todavía no existe el archivo maestro `reporteProyectoCoordinacionBas.xlsx`, el script usa temporalmente `reporteProyectoCoordinacionBasProductos.xlsx` como respaldo para los datos generales. En ese caso los grupos de investigación quedarán vacíos hasta cargar el archivo maestro.
 
-Para actualizar la base sin reconstruirla desde cero, usar:
-
-```bash
-venv/bin/python scripts/update_from_excel.py
-```
-
-Por defecto procesa:
-
-```text
-data/raw/reporteProyectoCoordinacionBasProductos.xlsx
-```
-
-También se puede probar sin guardar cambios:
-
-```bash
-venv/bin/python scripts/update_from_excel.py --dry-run
-```
-
-El script compara los proyectos por `codigo_hermes`, inserta los nuevos, actualiza los datos administrativos de los existentes y conserva las categorías revisadas manualmente. La autoclasificación queda preparada para proyectos nuevos o sin categoría, pero por ahora no usa modelo de machine learning; deja esos proyectos como `Sin asignar` hasta conectar una estrategia de clasificación.
-
-La misma actualización puede hacerse desde la interfaz usando el botón `Actualizar Excel`. Primero se muestra una vista previa y luego se confirma la importación.
+También se puede actualizar desde el dashboard con el botón `Actualizar Datos`. Este flujo requiere correr la app con FastAPI, seleccionar los dos Excel en el modal y confirmar la actualización.
 
 ## Registro de proyectos
 
@@ -192,14 +164,12 @@ Macrocategorías disponibles:
 - Modal con detalle de cada proyecto.
 - Formulario para registrar proyectos.
 - Backend FastAPI con lectura y escritura en SQLite.
-- Dataset preparado para una futura etapa de clasificación con machine learning.
 
 ## Notas técnicas
 
 - La versión actual usa SQLite para facilitar el desarrollo local.
 - Para producción o uso grupal permanente se recomienda migrar a PostgreSQL.
 - El frontend intenta usar `/api/projects` y `/api/categories`. Si la API no está disponible, usa los JSON locales como respaldo.
-- El archivo `data/processed/ml_dataset.csv` contiene el texto consolidado que puede alimentar el modelo de clasificación.
 
 ## Estado del proyecto
 

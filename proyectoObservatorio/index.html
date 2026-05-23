@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Ancizar+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=unal-20260514b" />
+  <link rel="stylesheet" href="css/styles.css?v=unal-20260512" />
 </head>
 <body>
 
@@ -25,9 +25,9 @@
         </div>
       </div>
       <div class="header-actions">
-        <button class="btn-import-projects" id="btnOpenImport">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Actualizar Excel
+        <button class="btn-import-data" id="btnOpenImport">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Actualizar Datos
         </button>
         <button class="btn-add-project" id="btnOpenModal">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -76,20 +76,13 @@
         <label class="filter-label">Buscar</label>
         <div class="search-wrap">
           <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="searchInput" class="filter-input search-input" placeholder="Nombre, objetivo, grupo, palabras clave…" />
+          <input type="text" id="searchInput" class="filter-input search-input" placeholder="Nombre, objetivo, palabras clave…" />
         </div>
       </div>
 
       <div class="filter-group">
         <label class="filter-label" for="filterDept">Departamento</label>
         <select id="filterDept" class="filter-select">
-          <option value="">Todos</option>
-        </select>
-      </div>
-
-      <div class="filter-group">
-        <label class="filter-label" for="filterGroup">Grupo de investigación</label>
-        <select id="filterGroup" class="filter-select">
           <option value="">Todos</option>
         </select>
       </div>
@@ -116,17 +109,10 @@
       </div>
 
       <div class="filter-group">
-        <label class="filter-label" for="filterProtection">Susceptible de protección</label>
-        <select id="filterProtection" class="filter-select">
-          <option value="">Todos</option>
-        </select>
-      </div>
-
-      <div class="filter-group">
-        <label class="filter-label" for="filterEstado">Estado</label>
-        <select id="filterEstado" class="filter-select">
-          <option value="">Todos</option>
-        </select>
+        <label class="filter-label">Estado</label>
+        <div class="estado-pills" id="estadoPills">
+          <button class="pill active" data-estado="">Todos</button>
+        </div>
       </div>
     </aside>
 
@@ -145,9 +131,6 @@
           <button class="view-btn" id="btnTable" title="Vista tabla">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
-          <button class="view-btn" id="btnCharts" title="Vista diagramas">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="10" width="3" height="7" rx="1"/><rect x="11" y="6" width="3" height="11" rx="1"/><rect x="16" y="3" width="3" height="14" rx="1"/></svg>
-          </button>
         </div>
       </div>
 
@@ -162,56 +145,13 @@
               <th>Código</th>
               <th>Nombre del Proyecto</th>
               <th>Departamento</th>
-              <th>Grupo</th>
               <th>Categoría</th>
-              <th>Protección</th>
               <th>Año</th>
               <th>Estado</th>
             </tr>
           </thead>
           <tbody id="projectsTableBody"></tbody>
         </table>
-      </div>
-
-      <!-- CHARTS VIEW -->
-      <div class="charts-view hidden" id="chartsView">
-        <div class="charts-grid">
-          <section class="chart-panel chart-panel-wide">
-            <div class="chart-header">
-              <h3>Proyectos por departamento</h3>
-              <span id="chartDeptTotal">0 proyectos</span>
-            </div>
-            <div class="bar-chart" id="chartDepartments"></div>
-          </section>
-
-          <section class="chart-panel">
-            <div class="chart-header">
-              <h3>Distribución por estado</h3>
-            </div>
-            <div class="pie-chart-wrap" id="chartStatus"></div>
-          </section>
-
-          <section class="chart-panel">
-            <div class="chart-header">
-              <h3>Susceptible de protección</h3>
-            </div>
-            <div class="pie-chart-wrap" id="chartProtection"></div>
-          </section>
-
-          <section class="chart-panel chart-panel-wide">
-            <div class="chart-header">
-              <h3>Proyectos por año</h3>
-            </div>
-            <div class="bar-chart compact" id="chartYears"></div>
-          </section>
-
-          <section class="chart-panel chart-panel-wide">
-            <div class="chart-header">
-              <h3>Proyectos por macrocategoría</h3>
-            </div>
-            <div class="bar-chart" id="chartCategories"></div>
-          </section>
-        </div>
       </div>
 
       <!-- EMPTY STATE -->
@@ -230,34 +170,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
       <div id="detailContent"></div>
-    </div>
-  </div>
-
-  <!-- IMPORT EXCEL MODAL -->
-  <div class="modal-overlay hidden" id="importModal">
-    <div class="modal-panel modal-import">
-      <div class="modal-form-header">
-        <h2 class="modal-form-title">Actualizar proyectos desde Excel</h2>
-        <button class="modal-close" id="closeImport">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="import-body">
-        <label class="import-drop" for="importExcelFile">
-          <input type="file" id="importExcelFile" accept=".xlsx,.xls" />
-          <span class="import-drop-title">Seleccionar reporte Excel</span>
-          <span class="import-drop-sub" id="importFileName">Formato permitido: .xlsx o .xls</span>
-        </label>
-        <div class="import-actions">
-          <button type="button" class="btn-cancel" id="cancelImport">Cancelar</button>
-          <button type="button" class="btn-submit" id="btnPreviewImport">Vista previa</button>
-        </div>
-        <div class="import-summary hidden" id="importSummary"></div>
-        <div class="form-actions hidden" id="importConfirmActions">
-          <button type="button" class="btn-cancel" id="btnResetImport">Cambiar archivo</button>
-          <button type="button" class="btn-submit" id="btnConfirmImport">Confirmar actualización</button>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -290,6 +202,16 @@
           </div>
 
           <div class="form-group">
+            <label class="form-label" for="f_investigador">Investigador principal</label>
+            <input type="text" id="f_investigador" class="form-input" placeholder="Nombre completo" />
+          </div>
+
+          <div class="form-group span-2">
+            <label class="form-label" for="f_grupo">Grupo de investigación</label>
+            <input type="text" id="f_grupo" class="form-input" placeholder="Nombre del grupo de investigación" />
+          </div>
+
+          <div class="form-group">
             <label class="form-label" for="f_departamento">Departamento / Instituto *</label>
             <select id="f_departamento" class="form-input" required>
               <option value="">Seleccionar…</option>
@@ -299,11 +221,6 @@
           <div class="form-group">
             <label class="form-label" for="f_facultad">Facultad</label>
             <input type="text" id="f_facultad" class="form-input" placeholder="Ej. Ingeniería" />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="f_grupo">Grupo de investigación</label>
-            <input type="text" id="f_grupo" class="form-input" placeholder="Nombre del grupo" />
           </div>
 
           <div class="form-group">
@@ -348,13 +265,8 @@
           </div>
 
           <div class="form-group span-2">
-            <label class="form-label" for="f_productos_propuestos">Productos propuestos</label>
-            <input type="text" id="f_productos_propuestos" class="form-input" placeholder="Separados por coma: artículo, prototipo, tesis…" />
-          </div>
-
-          <div class="form-group span-2">
-            <label class="form-label" for="f_productos_logrados">Productos logrados</label>
-            <input type="text" id="f_productos_logrados" class="form-input" placeholder="Separados por coma: software, ponencia, informe…" />
+            <label class="form-label" for="f_productos">Productos esperados</label>
+            <input type="text" id="f_productos" class="form-input" placeholder="Separados por coma: artículo, prototipo, tesis…" />
           </div>
 
         </div>
@@ -367,6 +279,37 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=unal-20260514"></script>
+  <!-- IMPORT DATA MODAL -->
+  <div class="modal-overlay hidden" id="importModal">
+    <div class="modal-panel modal-form">
+      <div class="modal-form-header">
+        <h2 class="modal-form-title">Actualizar Base de Datos</h2>
+        <button class="modal-close" id="closeImport">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <form id="importDataForm" class="project-form">
+        <div class="form-grid">
+          <div class="form-group span-2">
+            <label class="form-label" for="projectsFile">Archivo maestro de proyectos</label>
+            <input type="file" id="projectsFile" class="form-input" accept=".xlsx" required />
+          </div>
+
+          <div class="form-group span-2">
+            <label class="form-label" for="productsFile">Archivo de productos y susceptibilidad</label>
+            <input type="file" id="productsFile" class="form-input" accept=".xlsx" required />
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" id="cancelImport">Cancelar</button>
+          <button type="submit" class="btn-submit" id="submitImport">Actualizar Base</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/app.js?v=unal-20260512"></script>
 </body>
 </html>
