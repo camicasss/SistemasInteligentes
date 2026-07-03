@@ -22,6 +22,15 @@ from build_database import (
     build_projects,
 )
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "ml_classifier"))
+try:
+    from predict import clasificar_proyecto, modelo_disponible
+    _ML_IMPORT_ERROR = None
+except Exception as exc:  # modelo no entrenado todavía, .pkl ausentes, dependencia faltante, etc.
+    clasificar_proyecto = None
+    modelo_disponible = lambda: False
+    _ML_IMPORT_ERROR = str(exc)
+
 
 SUMMARY_FILE = BASE_DIR / "data" / "processed" / "last_update_summary.json"
 PROPOSED_PRODUCT_COLUMNS = {
@@ -155,7 +164,9 @@ def load_report(excel_file: Path) -> pd.DataFrame:
         "area_ocde",
         "tipo_proyecto",
     ]
-    existing_columns = [column for column in columns if column in df.columns]
+    existing_columns = list(dict.fromkeys(
+        column for column in columns if column in df.columns
+    ))
     df = df[existing_columns].fillna("")
 
     if "resumen" in df.columns and "objetivo_general" in df.columns:
@@ -253,15 +264,39 @@ def is_without_category(project: dict[str, Any]) -> bool:
 def should_autoclassify(project: dict[str, Any]) -> bool:
     if bool(project.get("clasificacion_revisada")):
         return False
-    origin = clean_text(project.get("clasificacion_origen"))
-    already_pending = origin == "pendiente_autoclasificacion"
-    return is_without_category(project) and not already_pending
+    return is_without_category(project)
 
 
 def classify_project(project: dict[str, Any]) -> dict[str, Any]:
-    # Punto de extensión: aquí se conectará un clasificador por reglas, embeddings o ML.
-    # Por ahora no se infiere una categoría real; se marca como pendiente.
-    return dict(UNASSIGNED)
+    """
+    Clasifica un proyecto usando el modelo de Machine Learning entrenado
+    (scripts/ml_classifier). Si el modelo no está disponible (.pkl ausentes,
+    error de carga, etc.) o la predicción falla por cualquier motivo, se
+    cae de forma segura a UNASSIGNED -- nunca debe romper la importación
+    masiva de proyectos por un fallo del clasificador.
+    """
+    if clasificar_proyecto is None or not modelo_disponible():
+        return dict(UNASSIGNED)
+
+    try:
+        resultado = clasificar_proyecto(
+            nombre=project.get("nombre", ""),
+            objetivo=project.get("objetivo", ""),
+            resumen=project.get("resumen", ""),
+        )
+    except Exception:
+        # No interrumpe la importación si el modelo falla en un registro puntual.
+        return dict(UNASSIGNED)
+
+    confianza = resultado.get("confianza_macro")
+    return {
+        "macrocategoria_id": resultado["macrocategoria_id"],
+        "macrocategoria": resultado["macrocategoria"],
+        "subcategoria_id": resultado["subcategoria_id"],
+        "subcategoria": resultado["subcategoria"],
+        "clasificacion_origen": "modelo_ml",
+        "clasificacion_confianza": confianza if confianza is not None else 0.0,
+    }
 
 
 def classification_payload(project: dict[str, Any], now: str) -> dict[str, Any]:

@@ -3,3 +3,5 @@ openpyxl
 fastapi
 uvicorn[standard]
 python-multipart
+scikit-learn
+joblib
