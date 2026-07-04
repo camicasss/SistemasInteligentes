@@ -13,6 +13,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from backend.database import (
+    IS_POSTGRES,
+    ensure_database_schema,
+    get_connection,
+    is_integrity_error,
+    table_columns,
+)
+
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 DB_FILE = BASE_DIR / "data" / "processed" / "proyectos.db"
@@ -28,6 +36,57 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def initialize_database() -> None:
+    with get_conn() as conn:
+        if not IS_POSTGRES:
+            return
+        count = conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+        if count or not DB_FILE.exists():
+            return
+
+        source = sqlite3.connect(DB_FILE)
+        source.row_factory = sqlite3.Row
+        try:
+            project_rows = source.execute("SELECT * FROM projects ORDER BY id").fetchall()
+            product_rows = source.execute(
+                "SELECT project_id, tipo, producto FROM project_products ORDER BY id"
+            ).fetchall()
+            keyword_rows = source.execute(
+                "SELECT project_id, palabra FROM project_keywords ORDER BY id"
+            ).fetchall()
+
+            project_columns = [column["name"] for column in source.execute("PRAGMA table_info(projects)")]
+            placeholders = ", ".join("?" for _ in project_columns)
+            conn.execute(
+                f"DELETE FROM project_keywords"
+            )
+            conn.execute(
+                f"DELETE FROM project_products"
+            )
+            conn.execute(
+                f"DELETE FROM projects"
+            )
+            for row in project_rows:
+                conn.execute(
+                    f"INSERT INTO projects ({', '.join(project_columns)}) VALUES ({placeholders})",
+                    tuple(row[column] for column in project_columns),
+                )
+            for row in product_rows:
+                conn.execute(
+                    "INSERT INTO project_products (project_id, tipo, producto) VALUES (?, ?, ?)",
+                    (row["project_id"], row["tipo"], row["producto"]),
+                )
+            for row in keyword_rows:
+                conn.execute(
+                    "INSERT INTO project_keywords (project_id, palabra) VALUES (?, ?)",
+                    (row["project_id"], row["palabra"]),
+                )
+            conn.commit()
+        finally:
+            source.close()
 
 
 class ProjectIn(BaseModel):
@@ -52,16 +111,20 @@ class ProjectIn(BaseModel):
     productos_esperados: list[str] = Field(default_factory=list)
 
 
-def get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+class ProjectClassificationIn(BaseModel):
+    macrocategoria_id: str = Field(min_length=1)
+    subcategoria_id: str = Field(min_length=1)
+
+
+def get_conn():
+    conn = get_connection(DB_FILE)
     ensure_classification_columns(conn)
     return conn
 
 
-def ensure_classification_columns(conn: sqlite3.Connection) -> None:
-    columns = {row["name"] for row in conn.execute("PRAGMA table_info(projects)")}
+def ensure_classification_columns(conn) -> None:
+    ensure_database_schema(conn)
+    columns = table_columns(conn, "projects")
     migrations = {
         "clasificacion_origen": "ALTER TABLE projects ADD COLUMN clasificacion_origen TEXT DEFAULT 'sin_asignar'",
         "clasificacion_confianza": "ALTER TABLE projects ADD COLUMN clasificacion_confianza REAL",
@@ -73,34 +136,11 @@ def ensure_classification_columns(conn: sqlite3.Connection) -> None:
     for column, statement in migrations.items():
         if column not in columns:
             conn.execute(statement)
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS project_products (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          project_id INTEGER NOT NULL,
-          tipo TEXT NOT NULL DEFAULT 'esperado',
-          producto TEXT NOT NULL,
-          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-        )
-        """
-    )
-    product_columns = {
-        row["name"] for row in conn.execute("PRAGMA table_info(project_products)")
-    }
+    product_columns = table_columns(conn, "project_products")
     if "tipo" not in product_columns:
         conn.execute(
             "ALTER TABLE project_products ADD COLUMN tipo TEXT NOT NULL DEFAULT 'esperado'"
         )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS project_keywords (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          project_id INTEGER NOT NULL,
-          palabra TEXT NOT NULL,
-          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-        )
-        """
-    )
     conn.commit()
 
 
@@ -120,6 +160,25 @@ def project_text(project: ProjectIn) -> str:
         " ".join(project.palabras_clave),
     ]
     return " ".join(part.strip() for part in parts if part and part.strip())
+
+
+def get_category_labels(macro_id: str, sub_id: str) -> tuple[str, str]:
+    categories = json.loads(CATEGORIES_FILE.read_text(encoding="utf-8"))
+    macro = next(
+        (item for item in categories.get("macrocategorias", []) if item.get("id") == macro_id),
+        None,
+    )
+    if not macro:
+        raise HTTPException(status_code=400, detail="Macrocategoría no válida.")
+
+    sub = next(
+        (item for item in macro.get("subcategorias", []) if item.get("id") == sub_id),
+        None,
+    )
+    if not sub:
+        raise HTTPException(status_code=400, detail="Subcategoría no válida.")
+
+    return macro["nombre"], sub["nombre"]
 
 
 def row_to_project(
@@ -249,11 +308,14 @@ def create_project(project: ProjectIn) -> dict[str, Any]:
                     project_text(project),
                 ),
             )
-        except sqlite3.IntegrityError as exc:
-            raise HTTPException(
-                status_code=409,
-                detail="Ya existe un proyecto con ese código HERMES.",
-            ) from exc
+        except Exception as exc:
+            if is_integrity_error(exc):
+                conn.rollback()
+                raise HTTPException(
+                    status_code=409,
+                    detail="Ya existe un proyecto con ese código HERMES.",
+                ) from exc
+            raise
 
         proposed_products = project.productos_propuestos or project.productos_esperados
         for product in proposed_products:
@@ -292,35 +354,111 @@ def create_project(project: ProjectIn) -> dict[str, Any]:
     return row_to_project(row, products, keywords)
 
 
+@app.patch("/api/projects/{project_id}/classification")
+def update_project_classification(
+    project_id: int,
+    classification: ProjectClassificationIn,
+) -> dict[str, Any]:
+    macro_name, sub_name = get_category_labels(
+        classification.macrocategoria_id.strip(),
+        classification.subcategoria_id.strip(),
+    )
+    updated_at = datetime.now(timezone.utc).isoformat()
+
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Proyecto no encontrado.")
+
+        conn.execute(
+            """
+            UPDATE projects
+            SET macrocategoria_id = ?,
+                macrocategoria = ?,
+                subcategoria_id = ?,
+                subcategoria = ?,
+                clasificacion_origen = 'manual',
+                clasificacion_confianza = 1.0,
+                clasificacion_revisada = 1,
+                clasificacion_actualizada_en = ?
+            WHERE id = ?
+            """,
+            (
+                classification.macrocategoria_id.strip(),
+                macro_name,
+                classification.subcategoria_id.strip(),
+                sub_name,
+                updated_at,
+                project_id,
+            ),
+        )
+        conn.commit()
+
+        try:
+            from scripts.update_from_excel import export_dashboard_json
+
+            export_dashboard_json(conn)
+        except Exception:
+            pass
+
+        row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+        products = fetch_products(conn).get(project_id, {})
+        keywords = [
+            keyword_row["palabra"]
+            for keyword_row in conn.execute(
+                "SELECT palabra FROM project_keywords WHERE project_id = ? ORDER BY palabra",
+                (project_id,),
+            )
+        ]
+
+    return row_to_project(row, products, keywords)
+
+
 @app.post("/api/projects/import-excel")
 async def import_projects_excel(
     dry_run: bool = Query(default=True),
-    file: UploadFile = File(...),
+    gru_file: UploadFile = File(...),
+    products_file: UploadFile = File(...),
 ) -> dict[str, Any]:
-    if not file.filename.lower().endswith((".xlsx", ".xls")):
-        raise HTTPException(status_code=400, detail="Debes subir un archivo Excel.")
+    uploads = {
+        "GRU": gru_file,
+        "Productos": products_file,
+    }
+    for label, upload in uploads.items():
+        filename = upload.filename or ""
+        if not filename.lower().endswith((".xlsx", ".xls")):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Debes subir un archivo Excel válido para {label}.",
+            )
 
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    suffix = Path(file.filename).suffix or ".xlsx"
+    temp_paths: list[Path] = []
 
     try:
-        contents = await file.read()
-        if not contents:
-            raise HTTPException(status_code=400, detail="El archivo está vacío.")
+        for label, upload in uploads.items():
+            contents = await upload.read()
+            if not contents:
+                raise HTTPException(status_code=400, detail=f"El archivo {label} está vacío.")
 
-        with tempfile.NamedTemporaryFile(
-            suffix=suffix,
-            dir=UPLOAD_DIR,
-            delete=False,
-        ) as temp_file:
-            temp_file.write(contents)
-            temp_path = Path(temp_file.name)
+            suffix = Path(upload.filename or "").suffix or ".xlsx"
+            with tempfile.NamedTemporaryFile(
+                suffix=suffix,
+                dir=UPLOAD_DIR,
+                delete=False,
+            ) as temp_file:
+                temp_file.write(contents)
+                temp_paths.append(Path(temp_file.name))
 
-        from scripts.update_from_excel import load_report, sync_projects
+        from scripts.update_from_excel import load_reports, sync_projects
 
-        projects = load_report(temp_path)
+        projects = load_reports(temp_paths[0], temp_paths[1])
         summary = sync_projects(projects, dry_run=dry_run)
-        summary["archivo_procesado"] = file.filename
+        summary["archivo_gru"] = gru_file.filename
+        summary["archivo_productos"] = products_file.filename
 
         if not dry_run:
             with get_conn() as conn:
@@ -345,8 +483,9 @@ async def import_projects_excel(
             detail=f"No se pudo procesar el Excel: {exc}",
         ) from exc
     finally:
-        if "temp_path" in locals() and temp_path.exists():
-            temp_path.unlink()
+        for temp_path in temp_paths:
+            if temp_path.exists():
+                temp_path.unlink()
 
 
 @app.get("/")

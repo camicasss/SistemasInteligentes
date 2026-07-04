@@ -21,6 +21,12 @@ from build_database import (
     slugify,
     build_projects,
 )
+from backend.database import (
+    IS_POSTGRES,
+    ensure_database_schema as ensure_base_database_schema,
+    get_connection,
+    table_columns,
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "ml_classifier"))
 try:
@@ -124,23 +130,30 @@ CLASSIFICATION_COLUMNS = [
 ]
 
 
-def load_report(excel_file: Path) -> pd.DataFrame:
+def read_report_excel(excel_file: Path) -> pd.DataFrame:
     df = pd.read_excel(excel_file)
     df.columns = [slugify(col) for col in df.columns]
+    return df
+
+
+def validate_report_columns(df: pd.DataFrame, *, label: str = "archivo") -> set[str]:
     source_columns = set(df.columns)
     missing_groups = [
-        label
-        for label, options in REQUIRED_IMPORT_GROUPS.items()
+        group_label
+        for group_label, options in REQUIRED_IMPORT_GROUPS.items()
         if not source_columns & options
     ]
     if missing_groups:
         missing = ", ".join(missing_groups)
         raise ValueError(
-            "El archivo no parece ser un reporte de proyectos válido. "
+            f"El {label} no parece ser un reporte de proyectos válido. "
             f"Faltan columnas de: {missing}. "
             "Sube el Excel oficial generado por la plataforma."
         )
+    return source_columns
 
+
+def prepare_report_frame(df: pd.DataFrame, source_columns: set[str]) -> pd.DataFrame:
     if "fecha_propuesto" in df.columns:
         df["fecha_propuesto"] = pd.to_datetime(df["fecha_propuesto"], errors="coerce")
         df = df[df["fecha_propuesto"].dt.year >= 2016]
@@ -178,13 +191,19 @@ def load_report(excel_file: Path) -> pd.DataFrame:
     if "codigo_hermes" not in df.columns:
         raise ValueError("El Excel debe incluir la columna codigo_hermes.")
 
+    return df
+
+
+def build_projects_from_frame(df: pd.DataFrame, source_columns: set[str]) -> pd.DataFrame:
     grouped = df.groupby("codigo_hermes", as_index=False).agg(
         lambda values: " ; ".join(
             sorted(
                 {
                     str(value).strip()
                     for value in values
-                    if str(value).strip() and str(value).strip().lower() != "nan"
+                    if not pd.isna(value)
+                    and str(value).strip()
+                    and str(value).strip().lower() not in {"nan", "nat"}
                 }
             )
         )
@@ -197,9 +216,61 @@ def load_report(excel_file: Path) -> pd.DataFrame:
     return projects
 
 
+def load_report(excel_file: Path) -> pd.DataFrame:
+    df = read_report_excel(excel_file)
+    source_columns = validate_report_columns(df)
+    df = prepare_report_frame(df, source_columns)
+    return build_projects_from_frame(df, source_columns)
+
+
+def load_reports(gru_excel_file: Path, products_excel_file: Path) -> pd.DataFrame:
+    gru_df = read_report_excel(gru_excel_file)
+    products_df = read_report_excel(products_excel_file)
+
+    gru_columns = validate_report_columns(gru_df, label="archivo GRU")
+    products_columns = validate_report_columns(products_df, label="archivo Productos")
+
+    gru_prepared = prepare_report_frame(gru_df, gru_columns)
+    products_prepared = prepare_report_frame(products_df, products_columns)
+    combined_columns = gru_columns | products_columns
+
+    gru_codes = {
+        clean_text(code)
+        for code in gru_prepared["codigo_hermes"]
+        if clean_text(code)
+    }
+    product_detail_columns = (
+        {"codigo_hermes"}
+        | PROPOSED_PRODUCT_COLUMNS
+        | ACHIEVED_PRODUCT_COLUMNS
+        | PROTECTION_COLUMNS
+    )
+    shared_product_rows = products_prepared[
+        products_prepared["codigo_hermes"].map(lambda code: clean_text(code) in gru_codes)
+    ]
+    shared_product_rows = shared_product_rows[
+        [column for column in shared_product_rows.columns if column in product_detail_columns]
+    ]
+    product_only_rows = products_prepared[
+        products_prepared["codigo_hermes"].map(lambda code: clean_text(code) not in gru_codes)
+    ]
+    combined = pd.concat(
+        [gru_prepared, shared_product_rows, product_only_rows],
+        ignore_index=True,
+        sort=False,
+    )
+    projects = build_projects_from_frame(combined, combined_columns)
+    projects.attrs["gru_source_columns"] = gru_columns
+    projects.attrs["products_source_columns"] = products_columns
+    projects.attrs["has_proposed_products"] = bool(products_columns & PROPOSED_PRODUCT_COLUMNS)
+    projects.attrs["has_achieved_products"] = bool(products_columns & ACHIEVED_PRODUCT_COLUMNS)
+    projects.attrs["has_protection"] = bool(products_columns & PROTECTION_COLUMNS)
+    return projects
+
+
 def ensure_database_schema(conn: sqlite3.Connection) -> None:
-    conn.execute("PRAGMA foreign_keys = ON")
-    columns = {row["name"] for row in conn.execute("PRAGMA table_info(projects)")}
+    ensure_base_database_schema(conn)
+    columns = table_columns(conn, "projects")
     migrations = {
         "clasificacion_origen": "ALTER TABLE projects ADD COLUMN clasificacion_origen TEXT DEFAULT 'sin_asignar'",
         "clasificacion_confianza": "ALTER TABLE projects ADD COLUMN clasificacion_confianza REAL",
@@ -212,35 +283,13 @@ def ensure_database_schema(conn: sqlite3.Connection) -> None:
         if column not in columns:
             conn.execute(statement)
 
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS project_products (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          project_id INTEGER NOT NULL,
-          tipo TEXT NOT NULL DEFAULT 'esperado',
-          producto TEXT NOT NULL,
-          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-        )
-        """
-    )
-    product_columns = {
-        row["name"] for row in conn.execute("PRAGMA table_info(project_products)")
-    }
+    product_columns = table_columns(conn, "project_products")
     if "tipo" not in product_columns:
         conn.execute(
             "ALTER TABLE project_products ADD COLUMN tipo TEXT NOT NULL DEFAULT 'esperado'"
         )
 
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS project_keywords (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          project_id INTEGER NOT NULL,
-          palabra TEXT NOT NULL,
-          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-        )
-        """
-    )
+    conn.commit()
 
 
 def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
@@ -382,7 +431,7 @@ def insert_project(
     project: dict[str, Any],
     next_id: int,
     now: str,
-) -> None:
+) -> dict[str, Any]:
     payload = {column: project.get(column) for column in ADMIN_COLUMNS}
     payload.update(classification_payload(project, now))
     payload["id"] = next_id
@@ -396,6 +445,7 @@ def insert_project(
     replace_products(conn, next_id, project.get("productos_propuestos", []), "propuesto")
     replace_products(conn, next_id, project.get("productos_logrados", []), "logrado")
     replace_keywords(conn, next_id, project.get("palabras_clave", []))
+    return payload
 
 
 def update_project(
@@ -407,7 +457,7 @@ def update_project(
     update_proposed_products: bool,
     update_achieved_products: bool,
     update_protection: bool,
-) -> tuple[bool, bool, bool]:
+) -> tuple[bool, bool, bool, str | None]:
     updates: dict[str, Any] = {}
 
     for column in ADMIN_COLUMNS:
@@ -419,10 +469,13 @@ def update_project(
             updates[column] = incoming.get(column)
 
     category_changed = False
+    classification_origin = None
     reviewed = bool(existing.get("clasificacion_revisada"))
     if should_autoclassify(existing):
-        updates.update(classification_payload(incoming, now))
+        classification = classification_payload(incoming, now)
+        updates.update(classification)
         category_changed = True
+        classification_origin = classification.get("clasificacion_origen")
 
     proposed_products_changed = False
     if update_proposed_products:
@@ -458,7 +511,7 @@ def update_project(
         or proposed_products_changed
         or achieved_products_changed
         or keywords_changed
-    ), category_changed, reviewed
+    ), category_changed, reviewed, classification_origin
 
 
 def export_dashboard_json(conn: sqlite3.Connection) -> None:
@@ -548,6 +601,7 @@ def sync_projects(projects: pd.DataFrame, dry_run: bool = False) -> dict[str, An
         "proyectos_actualizados": 0,
         "proyectos_sin_cambios": 0,
         "proyectos_autoclasificados": 0,
+        "proyectos_pendientes_clasificacion": 0,
         "clasificaciones_revisadas_conservadas": 0,
         "errores": [],
         "advertencias": [],
@@ -566,9 +620,9 @@ def sync_projects(projects: pd.DataFrame, dry_run: bool = False) -> dict[str, An
             "El Excel no trae columna de susceptible de protección; se conservan los valores existentes."
         )
 
-    DB_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.row_factory = sqlite3.Row
+    if not IS_POSTGRES:
+        DB_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with get_connection(DB_FILE) as conn:
         ensure_database_schema(conn)
 
         existing_rows = conn.execute("SELECT * FROM projects").fetchall()
@@ -587,13 +641,16 @@ def sync_projects(projects: pd.DataFrame, dry_run: bool = False) -> dict[str, An
                     continue
 
                 if code not in existing_by_code:
-                    insert_project(conn, project, next_id, now)
+                    inserted = insert_project(conn, project, next_id, now)
                     next_id += 1
                     summary["proyectos_nuevos"] += 1
-                    summary["proyectos_autoclasificados"] += 1
+                    if inserted.get("clasificacion_origen") == "modelo_ml":
+                        summary["proyectos_autoclasificados"] += 1
+                    elif is_without_category(inserted):
+                        summary["proyectos_pendientes_clasificacion"] += 1
                     continue
 
-                changed, category_changed, reviewed = update_project(
+                changed, category_changed, reviewed, classification_origin = update_project(
                     conn,
                     existing_by_code[code],
                     project,
@@ -607,7 +664,10 @@ def sync_projects(projects: pd.DataFrame, dry_run: bool = False) -> dict[str, An
                 else:
                     summary["proyectos_sin_cambios"] += 1
                 if category_changed:
-                    summary["proyectos_autoclasificados"] += 1
+                    if classification_origin == "modelo_ml":
+                        summary["proyectos_autoclasificados"] += 1
+                    else:
+                        summary["proyectos_pendientes_clasificacion"] += 1
                 if reviewed:
                     summary["clasificaciones_revisadas_conservadas"] += 1
 
