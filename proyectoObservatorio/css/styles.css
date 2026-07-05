@@ -377,6 +377,39 @@ body {
 
 .results-count strong { color: var(--text-1); }
 
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.export-btn {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 12px;
+  transition: all .15s;
+}
+
+.export-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.export-btn:hover {
+  background: var(--unal-dark);
+  border-color: var(--unal-dark);
+  color: #fff;
+}
+
 .view-toggle {
   display: flex;
   gap: 4px;
@@ -1038,6 +1071,39 @@ body {
   flex-shrink: 0;
 }
 
+.classification-form {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  background: var(--surface-2);
+}
+
+.classification-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.classification-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.classification-grid span {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.classification-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
 /* Form Modal */
 .modal-form,
 .modal-import {
@@ -1155,6 +1221,12 @@ body {
   padding: 24px 36px 36px;
 }
 
+.import-drop-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .import-drop {
   min-height: 148px;
   border: 1.5px dashed var(--border-dark);
@@ -1212,6 +1284,41 @@ body {
 .import-summary-row span:first-child { color: var(--text-3); }
 .import-summary-row strong { color: var(--text-1); }
 
+.import-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: var(--surface-2);
+}
+
+.import-status strong {
+  display: block;
+  color: var(--text-1);
+  font-size: 15px;
+  margin-bottom: 3px;
+}
+
+.import-status p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 13.5px;
+}
+
+.import-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--unal-green);
+  border-radius: 50%;
+  flex: 0 0 auto;
+  animation: spin .8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ─── TOAST ──────────────────────────────────────────────────── */
 .toast {
   position: fixed;
@@ -1260,6 +1367,8 @@ body {
   .header-inner { padding: 0 16px; }
   .header-actions { gap: 6px; }
   .btn-add-project, .btn-import-projects { padding: 8px 10px; font-size: 12.5px; }
+  .toolbar { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .toolbar-actions { width: 100%; justify-content: space-between; }
   .hero-stats { padding: 20px 16px; }
   .hero-inner { gap: 0; }
   .stat-number { font-size: 28px; }
@@ -1267,11 +1376,13 @@ body {
   .stat-divider { height: 36px; }
   .modal-detail, .modal-form { padding: 24px; width: min(100%, 680px); }
   .detail-meta { grid-template-columns: 1fr; }
+  .classification-grid { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
   .form-group.span-2 { grid-column: span 1; }
   .modal-form-header { padding: 20px 24px 16px; }
   .project-form { padding: 16px 24px 24px; }
   .import-body { padding: 16px 24px 24px; }
+  .import-drop-grid { grid-template-columns: 1fr; }
   .charts-grid { grid-template-columns: 1fr; }
   .bar-chart.compact { grid-template-columns: 1fr; }
   .bar-row { grid-template-columns: 1fr 1fr 34px; }

@@ -29,10 +29,6 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Actualizar Excel
         </button>
-        <button class="btn-add-project" id="btnOpenModal">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Nuevo Proyecto
-        </button>
       </div>
     </div>
   </header>
@@ -76,7 +72,7 @@
         <label class="filter-label">Buscar</label>
         <div class="search-wrap">
           <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="searchInput" class="filter-input search-input" placeholder="Nombre, objetivo, grupo, palabras clave…" />
+          <input type="text" id="searchInput" class="filter-input search-input" placeholder="Nombre, objetivo o grupo…" />
         </div>
       </div>
 
@@ -138,16 +134,22 @@
         <div class="results-count">
           Mostrando <strong id="resultsCount">0</strong> proyectos
         </div>
-        <div class="view-toggle">
-          <button class="view-btn active" id="btnGrid" title="Vista tarjetas">
-            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <div class="toolbar-actions">
+          <button class="export-btn" id="btnExportCsv" title="Descargar CSV filtrado">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            CSV
           </button>
-          <button class="view-btn" id="btnTable" title="Vista tabla">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
-          <button class="view-btn" id="btnCharts" title="Vista diagramas">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="10" width="3" height="7" rx="1"/><rect x="11" y="6" width="3" height="11" rx="1"/><rect x="16" y="3" width="3" height="14" rx="1"/></svg>
-          </button>
+          <div class="view-toggle">
+            <button class="view-btn active" id="btnGrid" title="Vista tarjetas">
+              <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </button>
+            <button class="view-btn" id="btnTable" title="Vista tabla">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <button class="view-btn" id="btnCharts" title="Vista diagramas">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="10" width="3" height="7" rx="1"/><rect x="11" y="6" width="3" height="11" rx="1"/><rect x="16" y="3" width="3" height="14" rx="1"/></svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -243,11 +245,18 @@
         </button>
       </div>
       <div class="import-body">
-        <label class="import-drop" for="importExcelFile">
-          <input type="file" id="importExcelFile" accept=".xlsx,.xls" />
-          <span class="import-drop-title">Seleccionar reporte Excel</span>
-          <span class="import-drop-sub" id="importFileName">Formato permitido: .xlsx o .xls</span>
-        </label>
+        <div class="import-drop-grid">
+          <label class="import-drop" for="importGruFile">
+            <input type="file" id="importGruFile" accept=".xlsx,.xls" />
+            <span class="import-drop-title">Subir archivo GRU</span>
+            <span class="import-drop-sub" id="importGruFileName">Formato permitido: .xlsx o .xls</span>
+          </label>
+          <label class="import-drop" for="importProductsFile">
+            <input type="file" id="importProductsFile" accept=".xlsx,.xls" />
+            <span class="import-drop-title">Subir archivo Productos</span>
+            <span class="import-drop-sub" id="importProductsFileName">Formato permitido: .xlsx o .xls</span>
+          </label>
+        </div>
         <div class="import-actions">
           <button type="button" class="btn-cancel" id="cancelImport">Cancelar</button>
           <button type="button" class="btn-submit" id="btnPreviewImport">Vista previa</button>

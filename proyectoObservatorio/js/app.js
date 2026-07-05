@@ -9,7 +9,8 @@ let allCategories  = {};
 let filters        = { search: '', dept: '', group: '', macro: '', sub: '', year: '', estado: '', protection: '' };
 let viewMode       = 'grid'; // 'grid' | 'table' | 'charts'
 let apiAvailable   = false;
-let importFile     = null;
+let importGruFile  = null;
+let importProductsFile = null;
 
 // ─── PALETA DE COLORES POR MACROCATEGORÍA ────────────────────
 const CAT_COLORS = {
@@ -197,6 +198,7 @@ function initEventListeners() {
   });
 
   document.getElementById('btnClearFilters').addEventListener('click', clearFilters);
+  document.getElementById('btnExportCsv').addEventListener('click', exportFilteredCsv);
 
   // Vista
   document.getElementById('btnGrid').addEventListener('click', () => setView('grid'));
@@ -210,7 +212,6 @@ function initEventListeners() {
   });
 
   // Modal agregar
-  document.getElementById('btnOpenModal').addEventListener('click', openAddModal);
   document.getElementById('closeAdd').addEventListener('click', closeAddModal);
   document.getElementById('cancelAdd').addEventListener('click', closeAddModal);
   document.getElementById('addModal').addEventListener('click', e => {
@@ -232,7 +233,8 @@ function initEventListeners() {
   document.getElementById('btnResetImport').addEventListener('click', resetImportModal);
   document.getElementById('btnPreviewImport').addEventListener('click', previewExcelImport);
   document.getElementById('btnConfirmImport').addEventListener('click', confirmExcelImport);
-  document.getElementById('importExcelFile').addEventListener('change', handleImportFileChange);
+  document.getElementById('importGruFile').addEventListener('change', e => handleImportFileChange(e, 'gru'));
+  document.getElementById('importProductsFile').addEventListener('change', e => handleImportFileChange(e, 'products'));
   document.getElementById('importModal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeImportModal();
   });
@@ -281,8 +283,7 @@ function getFiltered() {
     if (filters.search) {
       const haystack = [
         p.nombre, p.objetivo, p.departamento,
-        p.grupo_de_investigacion, p.macrocategoria, p.subcategoria,
-        ...(p.palabras_clave || [])
+        p.grupo_de_investigacion, p.macrocategoria, p.subcategoria
       ].join(' ').toLowerCase();
       if (!haystack.includes(filters.search)) return false;
     }
@@ -322,6 +323,78 @@ function updateStats(filtered) {
   animateNumber('statActive', active);
   animateNumber('statDepts',  depts);
   animateNumber('statCats',   cats);
+}
+
+function exportFilteredCsv() {
+  const projects = getFiltered();
+  if (!projects.length) {
+    showToast('No hay proyectos para exportar.');
+    return;
+  }
+
+  const headers = [
+    'codigo_hermes',
+    'nombre',
+    'objetivo',
+    'productos_propuestos',
+    'productos_logrados',
+    'productos',
+    'susceptible_proteccion',
+    'grupo_investigacion',
+    'macrocategoria_id',
+    'macrocategoria',
+    'subcategoria_id',
+    'subcategoria',
+    'departamento',
+    'anio_inicio',
+    'anio_fin',
+    'estado'
+  ];
+
+  const rows = projects.map(project => [
+    project.codigo_hermes,
+    project.nombre,
+    project.objetivo,
+    joinCsvList(project.productos_propuestos),
+    joinCsvList(project.productos_logrados),
+    joinCsvList(project.productos_esperados),
+    project.proteccion_producto,
+    project.grupo_de_investigacion,
+    project.macrocategoria_id,
+    project.macrocategoria,
+    project.subcategoria_id,
+    project.subcategoria,
+    project.departamento,
+    project.año_inicio,
+    project.año_fin,
+    project.estado
+  ]);
+
+  const csv = [headers, ...rows]
+    .map(row => row.map(escapeCsvValue).join(','))
+    .join('\n');
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+
+  link.href = URL.createObjectURL(blob);
+  link.download = `proyectos_filtrados_${date}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);
+  showToast(`CSV descargado con ${projects.length} proyectos.`);
+}
+
+function joinCsvList(values) {
+  return (values || []).filter(Boolean).join(' | ');
+}
+
+function escapeCsvValue(value) {
+  if (value === null || value === undefined) return '';
+  const text = String(value).replace(/\r?\n|\r/g, ' ').trim();
+  if (/[",\n;]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
 }
 
 function animateNumber(id, target) {
@@ -365,7 +438,6 @@ function renderGrid(projects) {
       <p class="card-group">${p.grupo_de_investigacion || 'Sin grupo registrado'}</p>
       <div class="card-tags">
         <span class="card-tag tag-cat">${p.macrocategoria_id} · ${shortCat(p.macrocategoria)}</span>
-        ${(p.palabras_clave || []).slice(0,2).map(k => `<span class="card-tag">${k}</span>`).join('')}
       </div>
       <div class="card-footer">
         <span class="card-year">${p.año_inicio}${p.año_fin ? ' — ' + p.año_fin : ''}</span>
@@ -519,11 +591,11 @@ function openDetailModal(p) {
   const modal  = document.getElementById('detailModal');
   const content = document.getElementById('detailContent');
 
-  const kwHTML = (p.palabras_clave || []).map(k => `<span class="detail-kw">${k}</span>`).join('');
   const proposedProducts = p.productos_propuestos || p.productos_esperados || [];
   const achievedProducts = p.productos_logrados || [];
   const proposedHTML = proposedProducts.map(pr => `<li>${pr}</li>`).join('');
   const achievedHTML = achievedProducts.map(pr => `<li>${pr}</li>`).join('');
+  const classificationHTML = isUnclassifiedProject(p) ? renderClassificationForm(p) : '';
 
   content.innerHTML = `
     <div class="detail-category-bar">
@@ -580,12 +652,6 @@ function openDetailModal(p) {
       <p class="detail-section-text">${p.ods_principal}</p>
     </div>` : ''}
 
-    ${kwHTML ? `
-    <div class="detail-section">
-      <div class="detail-section-label">Palabras clave</div>
-      <div class="detail-keywords">${kwHTML}</div>
-    </div>` : ''}
-
     ${proposedHTML ? `
     <div class="detail-section">
       <div class="detail-section-label">Productos propuestos</div>
@@ -597,7 +663,17 @@ function openDetailModal(p) {
       <div class="detail-section-label">Productos logrados</div>
       <ul class="detail-products-list">${achievedHTML}</ul>
     </div>` : ''}
+
+    ${classificationHTML}
   `;
+
+  const classificationForm = document.getElementById('classificationForm');
+  if (classificationForm) {
+    document.getElementById('classificationMacro').addEventListener('change', e => {
+      updateDetailClassificationSubcats(e.target.value);
+    });
+    classificationForm.addEventListener('submit', e => handleClassificationSubmit(e, p));
+  }
 
   modal.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
@@ -606,6 +682,110 @@ function openDetailModal(p) {
 function closeDetailModal() {
   document.getElementById('detailModal').classList.add('hidden');
   document.body.style.overflow = '';
+}
+
+function isUnclassifiedProject(project) {
+  const macroId = project.macrocategoria_id || '';
+  const subId = project.subcategoria_id || '';
+  return macroId === 'M00' || subId === 'M00-S00' || project.macrocategoria === 'Sin asignar';
+}
+
+function renderClassificationForm(project) {
+  const macros = allCategories.macrocategorias || [];
+  const macroOptions = macros.map(m => `<option value="${m.id}">${m.id} — ${m.nombre}</option>`).join('');
+
+  return `
+    <form class="detail-section classification-form" id="classificationForm">
+      <div class="detail-section-label">Clasificación manual</div>
+      <div class="classification-grid">
+        <label>
+          <span>Macrocategoría</span>
+          <select id="classificationMacro" class="form-input" required>
+            <option value="">Seleccionar…</option>
+            ${macroOptions}
+          </select>
+        </label>
+        <label>
+          <span>Subcategoría</span>
+          <select id="classificationSub" class="form-input" required>
+            <option value="">Seleccionar macrocategoría primero…</option>
+          </select>
+        </label>
+      </div>
+      <div class="classification-actions">
+        <button type="submit" class="btn-submit" id="btnSaveClassification">
+          Guardar clasificación
+        </button>
+      </div>
+    </form>
+  `;
+}
+
+function updateDetailClassificationSubcats(macroId) {
+  const sel = document.getElementById('classificationSub');
+  sel.innerHTML = '<option value="">Seleccionar…</option>';
+  if (!macroId) return;
+
+  const macro = allCategories.macrocategorias?.find(m => m.id === macroId);
+  if (!macro) return;
+
+  macro.subcategorias.forEach(sub => {
+    const opt = document.createElement('option');
+    opt.value = sub.id;
+    opt.textContent = `${sub.id} — ${sub.nombre}`;
+    sel.appendChild(opt);
+  });
+}
+
+async function handleClassificationSubmit(e, project) {
+  e.preventDefault();
+  const macroId = document.getElementById('classificationMacro').value;
+  const subId = document.getElementById('classificationSub').value;
+  const button = document.getElementById('btnSaveClassification');
+
+  if (!macroId || !subId) {
+    showToast('Selecciona macrocategoría y subcategoría.');
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Guardando…';
+  try {
+    const updatedProject = await updateProjectClassification(project.id, macroId, subId);
+    const index = allProjects.findIndex(item => item.id === updatedProject.id);
+    if (index >= 0) allProjects[index] = updatedProject;
+    initFilters();
+    renderAll();
+    openDetailModal(updatedProject);
+    showToast('Clasificación guardada.');
+  } catch (error) {
+    console.error('Error clasificando proyecto:', error);
+    showToast(error.message || 'No se pudo guardar la clasificación.');
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Guardar clasificación';
+  }
+}
+
+async function updateProjectClassification(projectId, macroId, subId) {
+  if (!apiAvailable) {
+    throw new Error('La clasificación manual requiere ejecutar el backend FastAPI.');
+  }
+
+  const response = await fetch(`/api/projects/${projectId}/classification`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      macrocategoria_id: macroId,
+      subcategoria_id: subId
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.detail || 'No se pudo guardar la clasificación.');
+  }
+  return data;
 }
 
 // ─── MODAL AGREGAR ────────────────────────────────────────────
@@ -704,24 +884,36 @@ function closeImportModal() {
 }
 
 function resetImportModal() {
-  importFile = null;
-  document.getElementById('importExcelFile').value = '';
-  document.getElementById('importFileName').textContent = 'Formato permitido: .xlsx o .xls';
+  importGruFile = null;
+  importProductsFile = null;
+  document.getElementById('importGruFile').value = '';
+  document.getElementById('importProductsFile').value = '';
+  document.getElementById('importGruFileName').textContent = 'Formato permitido: .xlsx o .xls';
+  document.getElementById('importProductsFileName').textContent = 'Formato permitido: .xlsx o .xls';
   document.getElementById('importSummary').classList.add('hidden');
   document.getElementById('importSummary').innerHTML = '';
   document.getElementById('importConfirmActions').classList.add('hidden');
 }
 
-function handleImportFileChange(e) {
-  importFile = e.target.files?.[0] || null;
-  document.getElementById('importFileName').textContent = importFile
-    ? importFile.name
+function handleImportFileChange(e, kind) {
+  const file = e.target.files?.[0] || null;
+  if (kind === 'gru') {
+    importGruFile = file;
+    document.getElementById('importGruFileName').textContent = file
+      ? file.name
+      : 'Formato permitido: .xlsx o .xls';
+    return;
+  }
+
+  importProductsFile = file;
+  document.getElementById('importProductsFileName').textContent = file
+    ? file.name
     : 'Formato permitido: .xlsx o .xls';
 }
 
 async function previewExcelImport() {
-  if (!importFile) {
-    showToast('Selecciona primero un archivo Excel.');
+  if (!importGruFile || !importProductsFile) {
+    showToast('Selecciona el archivo GRU y el archivo Productos.');
     return;
   }
 
@@ -739,13 +931,14 @@ async function previewExcelImport() {
 }
 
 async function confirmExcelImport() {
-  if (!importFile) {
-    showToast('Selecciona primero un archivo Excel.');
+  if (!importGruFile || !importProductsFile) {
+    showToast('Selecciona el archivo GRU y el archivo Productos.');
     return;
   }
 
   setImportLoading(true, 'Actualizando…');
-  document.getElementById('btnConfirmImport').disabled = true;
+  setImportConfirmLoading(true);
+  renderImportStatus('Actualizando…');
   try {
     const summary = await sendExcelImport(false);
     if (Array.isArray(summary.projects)) {
@@ -762,13 +955,14 @@ async function confirmExcelImport() {
     showToast(error.message || 'No se pudo actualizar la base.');
   } finally {
     setImportLoading(false, 'Vista previa');
-    document.getElementById('btnConfirmImport').disabled = false;
+    setImportConfirmLoading(false);
   }
 }
 
 async function sendExcelImport(dryRun) {
   const formData = new FormData();
-  formData.append('file', importFile);
+  formData.append('gru_file', importGruFile);
+  formData.append('products_file', importProductsFile);
 
   const response = await fetch(`/api/projects/import-excel?dry_run=${dryRun}`, {
     method: 'POST',
@@ -784,13 +978,15 @@ async function sendExcelImport(dryRun) {
 
 function renderImportSummary(summary) {
   const labels = [
-    ['archivo_procesado', 'Archivo'],
+    ['archivo_gru', 'Archivo GRU'],
+    ['archivo_productos', 'Archivo Productos'],
     ['proyectos_en_excel', 'Proyectos en Excel'],
     ['proyectos_nuevos', 'Proyectos nuevos'],
     ['proyectos_actualizados', 'Proyectos actualizados'],
     ['proyectos_sin_cambios', 'Proyectos sin cambios'],
     ['proyectos_sin_codigo', 'Proyectos sin código'],
-    ['proyectos_autoclasificados', 'Pendientes de clasificación'],
+    ['proyectos_autoclasificados', 'Clasificados por modelo'],
+    ['proyectos_pendientes_clasificacion', 'Pendientes de clasificación manual'],
     ['clasificaciones_revisadas_conservadas', 'Clasificaciones revisadas conservadas'],
     ['actualiza_productos_propuestos', 'Actualiza productos propuestos'],
     ['actualiza_productos_logrados', 'Actualiza productos logrados'],
@@ -823,6 +1019,19 @@ function renderImportSummary(summary) {
   box.classList.remove('hidden');
 }
 
+function renderImportStatus(title) {
+  const box = document.getElementById('importSummary');
+  box.innerHTML = `
+    <div class="import-status">
+      <span class="import-spinner"></span>
+      <div>
+        <strong>${title}</strong>
+      </div>
+    </div>
+  `;
+  box.classList.remove('hidden');
+}
+
 function formatSummaryValue(value) {
   if (typeof value === 'boolean') return value ? 'Sí' : 'No';
   if (value === null || value === undefined || value === '') return '—';
@@ -833,6 +1042,12 @@ function setImportLoading(isLoading, label) {
   const btn = document.getElementById('btnPreviewImport');
   btn.disabled = isLoading;
   btn.textContent = label;
+}
+
+function setImportConfirmLoading(isLoading) {
+  document.getElementById('btnConfirmImport').disabled = isLoading;
+  document.getElementById('btnResetImport').disabled = isLoading;
+  document.getElementById('cancelImport').disabled = isLoading;
 }
 
 // ─── PERSISTENCIA LOCAL ───────────────────────────────────────
