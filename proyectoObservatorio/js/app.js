@@ -988,9 +988,6 @@ function renderImportSummary(summary) {
     ['proyectos_autoclasificados', 'Clasificados por modelo'],
     ['proyectos_pendientes_clasificacion', 'Pendientes de clasificación manual'],
     ['clasificaciones_revisadas_conservadas', 'Clasificaciones revisadas conservadas'],
-    ['actualiza_productos_propuestos', 'Actualiza productos propuestos'],
-    ['actualiza_productos_logrados', 'Actualiza productos logrados'],
-    ['actualiza_proteccion_producto', 'Actualiza susceptible de protección'],
     ['dry_run', 'Modo vista previa']
   ];
 
