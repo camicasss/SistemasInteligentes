@@ -2,7 +2,7 @@
 
 Proyecto grupal para visualizar, filtrar, clasificar y gestionar información de proyectos de investigación de la Universidad Nacional de Colombia, Sede Bogotá.
 
-El sistema parte de un archivo maestro en Excel, construye una base de datos local y expone un dashboard web con filtros, tarjetas, tabla de proyectos y formulario de registro.
+El sistema parte de reportes en Excel, construye una base de datos y expone un dashboard web con filtros, tarjetas, tabla de proyectos, gráficas e importación de datos.
 
 ## Objetivo
 
@@ -11,8 +11,9 @@ Desarrollar una plataforma web que permita:
 - Consultar proyectos de investigación de forma organizada.
 - Filtrar proyectos por departamento, año, estado y categoría.
 - Preparar los datos para un modelo de clasificación automática.
-- Registrar nuevos proyectos desde una interfaz web.
-- Evolucionar hacia una base de datos compartida para trabajo colaborativo.
+- Actualizar la base desde los reportes GRU y Productos.
+- Revisar y ajustar manualmente la clasificación de proyectos cuando sea necesario.
+- Trabajar en local con SQLite y en Railway con PostgreSQL.
 
 ## Estructura del proyecto
 
@@ -31,7 +32,9 @@ investigacion-unal/
 │   └── dashboard/             
 ├── scripts/
 │   ├── limpieza.py            
-│   └── build_database.py       
+│   ├── build_database.py
+│   ├── update_from_excel.py
+│   └── ml_classifier/
 ├── requirements.txt          
 ├── Procfile                  
 └── README.md
@@ -39,7 +42,7 @@ investigacion-unal/
 
 ## Ejecución local recomendada
 
-La forma recomendada de ejecutar el proyecto es usando el backend FastAPI. De esta manera, el dashboard lee y escribe información en la base SQLite.
+La forma recomendada de ejecutar el proyecto es usando el backend FastAPI. De esta manera, el dashboard lee y escribe información en la base SQLite local.
 
 ```bash
 venv/bin/pip install -r requirements.txt
@@ -70,9 +73,9 @@ pip install -r requirements.txt
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| GET | `/api/projects` | Lista los proyectos desde SQLite |
-| POST | `/api/projects` | Registra un proyecto nuevo en SQLite |
-| POST | `/api/projects/import-excel` | Previsualiza o confirma una actualización masiva desde Excel |
+| GET | `/api/projects` | Lista los proyectos |
+| POST | `/api/projects/import-excel` | Previsualiza o confirma una actualización desde los Excel GRU y Productos |
+| PATCH | `/api/projects/{id}/classification` | Guarda una clasificación manual |
 | GET | `/api/categories` | Lista categorías, subcategorías y estados |
 | GET | `/api/health` | Verifica que el backend esté activo |
 
@@ -90,14 +93,14 @@ Luego abrir:
 http://localhost:8080
 ```
 
-En este modo el dashboard usa el archivo `data/dashboard/proyectos_from_db.json` como respaldo. Los proyectos agregados desde el formulario no se guardan en una base compartida; solo quedan en el navegador mediante `localStorage`.
+En este modo el dashboard usa el archivo `data/dashboard/proyectos_from_db.json` como respaldo. Sirve para consultar la información, pero la importación de Excel y los cambios de clasificación requieren el backend.
 
 ## Pipeline de datos
 
 El flujo de datos del proyecto es:
 
 ```text
-Excel original
+Excel original / reportes GRU y Productos
 → scripts/limpieza.py
 → data/processed/dataset_maestro_proyectos.xlsx
 → scripts/build_database.py
@@ -126,40 +129,34 @@ venv/bin/python scripts/build_database.py
 
 El primer comando limpia el Excel original ubicado en `data/raw/`. El segundo comando reconstruye la base SQLite, el JSON del dashboard y el CSV para machine learning.
 
-## Actualización periódica desde Excel
+## Actualización desde Excel
 
-Para actualizar la base sin reconstruirla desde cero, usar:
+Para actualizar la base sin reconstruirla desde cero, se puede usar el script:
 
 ```bash
-venv/bin/python scripts/update_from_excel.py
+venv/bin/python scripts/update_from_excel.py data/raw/reporteProyectoCoordinacionBasProductos.xlsx
 ```
 
-Por defecto procesa:
+Desde la interfaz se usa el botón `Actualizar Excel`. Allí se cargan dos archivos:
 
 ```text
-data/raw/reporteProyectoCoordinacionBasProductos.xlsx
+GRU: reporte principal de proyectos
+Productos: reporte con productos propuestos, logrados y protección
 ```
 
-También se puede probar sin guardar cambios:
+Primero se muestra una vista previa con proyectos nuevos, actualizados, sin cambios y sin código. Si todo está bien, se confirma la importación.
+
+También se puede probar por consola sin guardar cambios:
 
 ```bash
-venv/bin/python scripts/update_from_excel.py --dry-run
+venv/bin/python scripts/update_from_excel.py data/raw/reporteProyectoCoordinacionBasProductos.xlsx --dry-run
 ```
 
-El script compara los proyectos por `codigo_hermes`, inserta los nuevos, actualiza los datos administrativos de los existentes y conserva las categorías revisadas manualmente. La autoclasificación queda preparada para proyectos nuevos o sin categoría, pero por ahora no usa modelo de machine learning; deja esos proyectos como `Sin asignar` hasta conectar una estrategia de clasificación.
+El script compara los proyectos por `codigo_hermes`, inserta los nuevos y actualiza los existentes solo cuando encuentra cambios reales. También conserva las categorías revisadas manualmente. En Railway la misma lógica corre sobre PostgreSQL.
 
-La misma actualización puede hacerse desde la interfaz usando el botón `Actualizar Excel`. Primero se muestra una vista previa y luego se confirma la importación.
+## Clasificación manual
 
-## Registro de proyectos
-
-Desde la interfaz:
-
-1. Abrir el dashboard con FastAPI.
-2. Seleccionar `Nuevo Proyecto`.
-3. Completar el formulario.
-4. Guardar.
-
-Cuando el proyecto corre con FastAPI, el registro se guarda en `data/processed/proyectos.db`. Cuando corre como sitio estático, se usa `localStorage` como respaldo local.
+Al abrir el detalle de un proyecto, la interfaz permite ajustar su macrocategoría y subcategoría cuando haga falta. Esa revisión queda guardada para que futuras importaciones desde Excel no la sobrescriban automáticamente.
 
 ## Sistema de categorías
 
@@ -188,19 +185,21 @@ Macrocategorías disponibles:
 
 - Dashboard web con vista de tarjetas y tabla.
 - Búsqueda por nombre, objetivo y palabras clave.
-- Filtros por departamento, macrocategoría, subcategoría, año y estado.
+- Filtros por departamento, grupo de investigación, macrocategoría, subcategoría, año, estado y protección.
 - Modal con detalle de cada proyecto.
-- Formulario para registrar proyectos.
-- Backend FastAPI con lectura y escritura en SQLite.
-- Dataset preparado para una futura etapa de clasificación con machine learning.
+- Edición manual de clasificación desde el detalle del proyecto.
+- Importación de reportes Excel desde la interfaz con vista previa.
+- Backend FastAPI con lectura y escritura en SQLite o PostgreSQL.
+- Clasificación automática de proyectos con modelo local cuando está disponible.
 
 ## Notas técnicas
 
-- La versión actual usa SQLite para facilitar el desarrollo local.
-- Para producción o uso grupal permanente se recomienda migrar a PostgreSQL.
+- En local se usa SQLite para facilitar el desarrollo.
+- En Railway se usa PostgreSQL mediante la variable `DATABASE_URL`.
 - El frontend intenta usar `/api/projects` y `/api/categories`. Si la API no está disponible, usa los JSON locales como respaldo.
 - El archivo `data/processed/ml_dataset.csv` contiene el texto consolidado que puede alimentar el modelo de clasificación.
+- La importación compara productos y palabras clave sin depender del orden en que los devuelva la base de datos.
 
 ## Estado del proyecto
 
-Versión funcional inicial con dashboard, pipeline de datos y backend básico. La siguiente etapa recomendada es conectar una base PostgreSQL y agregar autenticación o control de edición si el proyecto se usará por varios usuarios.
+Versión funcional con dashboard, API, importación de Excel, base local y despliegue en Railway. Una siguiente mejora razonable sería agregar autenticación o control de edición si el proyecto se usa por varias personas.
