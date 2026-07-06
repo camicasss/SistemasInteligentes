@@ -367,14 +367,13 @@ def fetch_products(
             """
             SELECT producto FROM project_products
             WHERE project_id = ? AND tipo = ?
-            ORDER BY producto
             """,
             (project_id, product_type),
         ).fetchall()
         return [row["producto"] for row in rows]
 
     rows = conn.execute(
-        "SELECT producto FROM project_products WHERE project_id = ? ORDER BY producto",
+        "SELECT producto FROM project_products WHERE project_id = ?",
         (project_id,),
     ).fetchall()
     return [row["producto"] for row in rows]
@@ -382,7 +381,7 @@ def fetch_products(
 
 def fetch_keywords(conn: sqlite3.Connection, project_id: int) -> list[str]:
     rows = conn.execute(
-        "SELECT palabra FROM project_keywords WHERE project_id = ? ORDER BY palabra",
+        "SELECT palabra FROM project_keywords WHERE project_id = ?",
         (project_id,),
     ).fetchall()
     return [row["palabra"] for row in rows]
@@ -394,7 +393,11 @@ def replace_products(
     products: list[str],
     product_type: str,
 ) -> bool:
-    current = fetch_products(conn, project_id, product_type)
+    current = sorted({
+        clean_text(product)
+        for product in fetch_products(conn, project_id, product_type)
+        if clean_text(product)
+    })
     incoming = sorted({clean_text(product) for product in products if clean_text(product)})
     if current == incoming:
         return False
@@ -412,7 +415,11 @@ def replace_products(
 
 
 def replace_keywords(conn: sqlite3.Connection, project_id: int, keywords: list[str]) -> bool:
-    current = fetch_keywords(conn, project_id)
+    current = sorted({
+        clean_text(keyword)
+        for keyword in fetch_keywords(conn, project_id)
+        if clean_text(keyword)
+    })
     incoming = sorted({clean_text(keyword) for keyword in keywords if clean_text(keyword)})
     if current == incoming:
         return False
