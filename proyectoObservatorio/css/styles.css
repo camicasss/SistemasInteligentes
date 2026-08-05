@@ -133,7 +133,8 @@ body {
 }
 
 .btn-add-project,
-.btn-import-projects {
+.btn-import-projects,
+.btn-login {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -156,13 +157,23 @@ body {
   border: 1px solid rgba(255,255,255,.22);
 }
 
+.btn-login {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.42);
+}
+
+.btn-login:hover { background: rgba(255,255,255,.14); transform: translateY(-1px); }
+.session-label { color: rgba(255,255,255,.8); font-size: 12.5px; white-space: nowrap; }
+
 .btn-add-project svg,
 .btn-import-projects svg { width: 15px; height: 15px; }
 
 .btn-add-project:hover { background: #c4d94c; transform: translateY(-1px); }
 .btn-import-projects:hover { background: rgba(255,255,255,.18); transform: translateY(-1px); }
 .btn-add-project:active,
-.btn-import-projects:active { transform: translateY(0); }
+.btn-import-projects:active,
+.btn-login:active { transform: translateY(0); }
 
 /* ─── HERO STATS ─────────────────────────────────────────────── */
 .hero-stats {
@@ -1112,6 +1123,7 @@ body {
 }
 
 .modal-import { width: min(620px, 100%); }
+.modal-login { width: min(430px, 100%); padding: 0; }
 
 .modal-form-header {
   padding: 28px 36px 20px;
@@ -1133,6 +1145,14 @@ body {
 .project-form {
   padding: 24px 36px 36px;
 }
+
+.login-form { display: flex; flex-direction: column; gap: 16px; }
+.login-help { color: var(--text-3); line-height: 1.5; }
+.form-field { display: flex; flex-direction: column; gap: 6px; }
+.form-field > span { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); }
+.form-field input { padding: 10px 13px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font: inherit; color: var(--text-1); }
+.form-field input:focus { outline: none; border-color: var(--unal-green); box-shadow: 0 0 0 3px rgba(0,120,50,.1); }
+.login-error { color: #B42318; font-size: 13px; }
 
 .form-grid {
   display: grid;

@@ -25,10 +25,13 @@
         </div>
       </div>
       <div class="header-actions">
-        <button class="btn-import-projects" id="btnOpenImport">
+        <span class="session-label hidden" id="sessionLabel"></span>
+        <button class="btn-import-projects hidden" id="btnOpenImport">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Actualizar Excel
         </button>
+        <button class="btn-login" id="btnLogin">Acceso administrador</button>
+        <button class="btn-login hidden" id="btnLogout">Cerrar sesión</button>
       </div>
     </div>
   </header>
@@ -232,6 +235,34 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
       <div id="detailContent"></div>
+    </div>
+  </div>
+
+  <!-- LOGIN MODAL -->
+  <div class="modal-overlay hidden" id="loginModal">
+    <div class="modal-panel modal-login">
+      <div class="modal-form-header">
+        <h2 class="modal-form-title">Acceso administrador</h2>
+        <button class="modal-close" id="closeLogin" type="button" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form class="project-form login-form" id="loginForm">
+        <p class="login-help">La consulta del observatorio es pública. Este acceso solo habilita la actualización de archivos Excel.</p>
+        <label class="form-field">
+          <span>Usuario</span>
+          <input id="loginUsername" required autocomplete="username" />
+        </label>
+        <label class="form-field">
+          <span>Contraseña</span>
+          <input id="loginPassword" type="password" required autocomplete="current-password" />
+        </label>
+        <p class="login-error hidden" id="loginError" role="alert"></p>
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" id="cancelLogin">Cancelar</button>
+          <button type="submit" class="btn-submit" id="btnSubmitLogin">Ingresar</button>
+        </div>
+      </form>
     </div>
   </div>
 

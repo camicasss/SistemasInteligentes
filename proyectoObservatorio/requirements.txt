@@ -1,6 +1,7 @@
 pandas
 openpyxl
 fastapi
+itsdangerous
 uvicorn[standard]
 python-multipart
 scikit-learn

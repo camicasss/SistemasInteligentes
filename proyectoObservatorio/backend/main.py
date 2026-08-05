@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import json
+import os
+import secrets
 import sqlite3
 import tempfile
 from pathlib import Path
 from typing import Any
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 from pydantic import BaseModel, Field
 
 from backend.database import (
@@ -28,6 +31,19 @@ CATEGORIES_FILE = BASE_DIR / "data" / "dashboard" / "categorias.json"
 UPLOAD_DIR = BASE_DIR / "data" / "processed" / "uploads"
 
 app = FastAPI(title="Observatorio UNAL API")
+
+# Las credenciales se configuran por variables de entorno al desplegar. Los
+# valores por defecto solo facilitan la ejecución local y deben reemplazarse.
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+SESSION_SECRET = os.getenv("SESSION_SECRET", "observatorio-local-change-this-secret")
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    same_site="lax",
+    https_only=os.getenv("COOKIE_SECURE", "false").lower() == "true",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -114,6 +130,27 @@ class ProjectIn(BaseModel):
 class ProjectClassificationIn(BaseModel):
     macrocategoria_id: str = Field(min_length=1)
     subcategoria_id: str = Field(min_length=1)
+
+
+class LoginIn(BaseModel):
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+
+
+def current_user(request: Request) -> dict[str, str] | None:
+    user = request.session.get("user")
+    if not isinstance(user, dict) or user.get("role") != "admin":
+        return None
+    return {"username": str(user.get("username", "")), "role": user["role"]}
+
+
+def require_admin(request: Request) -> dict[str, str]:
+    user = current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Inicia sesión como administrador para actualizar los Excel.")
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Solo los administradores pueden actualizar los Excel.")
+    return user
 
 
 def get_conn():
@@ -244,6 +281,31 @@ def fetch_keywords(conn: sqlite3.Connection) -> dict[int, list[str]]:
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/auth/me")
+def get_current_user(request: Request) -> dict[str, Any]:
+    return {"user": current_user(request)}
+
+
+@app.post("/api/auth/login")
+def login(credentials: LoginIn, request: Request) -> dict[str, dict[str, str]]:
+    username = credentials.username.strip()
+    role: str | None = None
+    if secrets.compare_digest(username, ADMIN_USERNAME) and secrets.compare_digest(credentials.password, ADMIN_PASSWORD):
+        role = "admin"
+    if not role:
+        raise HTTPException(status_code=401, detail="Credenciales de administrador incorrectas.")
+
+    user = {"username": username, "role": role}
+    request.session["user"] = user
+    return {"user": user}
+
+
+@app.post("/api/auth/logout")
+def logout(request: Request) -> Response:
+    request.session.clear()
+    return Response(status_code=204)
 
 
 @app.get("/api/categories")
@@ -419,10 +481,12 @@ def update_project_classification(
 
 @app.post("/api/projects/import-excel")
 async def import_projects_excel(
+    request: Request,
     dry_run: bool = Query(default=True),
     gru_file: UploadFile = File(...),
     products_file: UploadFile = File(...),
 ) -> dict[str, Any]:
+    require_admin(request)
     uploads = {
         "GRU": gru_file,
         "Productos": products_file,

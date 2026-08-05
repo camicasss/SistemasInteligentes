@@ -11,6 +11,7 @@ let viewMode       = 'grid'; // 'grid' | 'table' | 'charts'
 let apiAvailable   = false;
 let importGruFile  = null;
 let importProductsFile = null;
+let currentUser = null;
 
 // ─── PALETA DE COLORES POR MACROCATEGORÍA ────────────────────
 const CAT_COLORS = {
@@ -23,6 +24,7 @@ const CAT_COLORS = {
 // ─── ARRANQUE ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await loadData();
+  await loadSession();
   initFilters();
   initEventListeners();
   renderAll();
@@ -239,14 +241,103 @@ function initEventListeners() {
     if (e.target === e.currentTarget) closeImportModal();
   });
 
+  // Acceso opcional de administrador; el dashboard siempre es público.
+  document.getElementById('btnLogin').addEventListener('click', openLoginModal);
+  document.getElementById('btnLogout').addEventListener('click', logout);
+  document.getElementById('closeLogin').addEventListener('click', closeLoginModal);
+  document.getElementById('cancelLogin').addEventListener('click', closeLoginModal);
+  document.getElementById('loginForm').addEventListener('submit', handleLogin);
+  document.getElementById('loginModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeLoginModal();
+  });
+
   // Teclado ESC
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       closeDetailModal();
       closeAddModal();
       closeImportModal();
+      closeLoginModal();
     }
   });
+}
+
+// ─── SESIÓN Y ROLES ──────────────────────────────────────────
+async function loadSession() {
+  if (!apiAvailable) {
+    updateSessionUI();
+    return;
+  }
+  try {
+    const response = await fetch('/api/auth/me');
+    const data = response.ok ? await response.json() : {};
+    currentUser = data.user || null;
+  } catch (error) {
+    console.warn('No se pudo consultar la sesión:', error);
+    currentUser = null;
+  }
+  updateSessionUI();
+}
+
+function updateSessionUI() {
+  const isAdmin = currentUser?.role === 'admin';
+  document.getElementById('btnOpenImport').classList.toggle('hidden', !isAdmin);
+  document.getElementById('btnLogin').classList.toggle('hidden', Boolean(currentUser));
+  document.getElementById('btnLogout').classList.toggle('hidden', !currentUser);
+  const label = document.getElementById('sessionLabel');
+  label.classList.toggle('hidden', !currentUser);
+  label.textContent = currentUser ? `${currentUser.username} · Administrador` : '';
+}
+
+function openLoginModal() {
+  if (!apiAvailable) {
+    showToast('El inicio de sesión requiere ejecutar el backend FastAPI.');
+    return;
+  }
+  document.getElementById('loginForm').reset();
+  document.getElementById('loginError').classList.add('hidden');
+  document.getElementById('loginModal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('loginUsername').focus();
+}
+
+function closeLoginModal() {
+  document.getElementById('loginModal').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const errorBox = document.getElementById('loginError');
+  errorBox.classList.add('hidden');
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: document.getElementById('loginUsername').value,
+      password: document.getElementById('loginPassword').value,
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    errorBox.textContent = data.detail || 'No fue posible iniciar sesión.';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  currentUser = data.user;
+  updateSessionUI();
+  closeLoginModal();
+  showToast('Sesión de administrador iniciada.');
+}
+
+async function logout() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' });
+  } finally {
+    currentUser = null;
+    updateSessionUI();
+    showToast('Sesión cerrada.');
+  }
 }
 
 function updateSubcatFilter(macroId) {
@@ -871,6 +962,10 @@ async function createProject(project) {
 function openImportModal() {
   if (!apiAvailable) {
     showToast('La importación requiere ejecutar el backend FastAPI.');
+    return;
+  }
+  if (currentUser?.role !== 'admin') {
+    showToast('Solo un administrador puede actualizar los Excel.');
     return;
   }
   resetImportModal();

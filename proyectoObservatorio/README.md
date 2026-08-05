@@ -61,6 +61,21 @@ Luego abrirá:
 http://localhost:8000
 ```
 
+## Acceso y permisos
+
+El dashboard se muestra inicialmente sin iniciar sesión y puede ser consultado por cualquier visitante. El usuario común no necesita cuenta ni credenciales: solo consulta la información pública. Únicamente el administrador inicia sesión, ve y puede usar la opción **Actualizar Excel**; esta restricción también se valida en la API.
+
+Antes de desplegar, configure estas variables de entorno con valores seguros:
+
+```bash
+export ADMIN_USERNAME="admin"
+export ADMIN_PASSWORD="una-contrasena-segura"
+export SESSION_SECRET="una-clave-aleatoria-larga"
+export COOKIE_SECURE="true" # usar en HTTPS/producción
+```
+
+Para facilitar pruebas locales, si no se definen variables se usan `admin` / `admin123`. No use estas credenciales predeterminadas en producción.
+
 Si el entorno virtual no está creado, se puede crear con:
 
 ```bash
@@ -74,6 +89,8 @@ pip install -r requirements.txt
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | `/api/projects` | Lista los proyectos |
+| POST | `/api/auth/login` | Inicia una sesión de administrador |
+| POST | `/api/auth/logout` | Cierra la sesión actual |
 | POST | `/api/projects/import-excel` | Previsualiza o confirma una actualización desde los Excel GRU y Productos |
 | PATCH | `/api/projects/{id}/classification` | Guarda una clasificación manual |
 | GET | `/api/categories` | Lista categorías, subcategorías y estados |
